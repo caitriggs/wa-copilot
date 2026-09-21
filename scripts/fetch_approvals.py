@@ -90,14 +90,26 @@ def user_root(user: str, data_root: str | None = None) -> Path:
     return base / user
 
 
+def _clean_cf_value(v):
+    """Tolerate a value pasted WITH its header-name prefix, e.g.
+    'CF-Access-Client-Id: <id>' or 'CF-Access-Client-Secret:  <secret>' — strip the label +
+    surrounding whitespace so the raw token is used."""
+    v = (v or "").strip()
+    low = v.lower()
+    for pref in ("cf-access-client-id:", "cf-access-client-secret:"):
+        if low.startswith(pref):
+            return v[len(pref):].strip()
+    return v
+
+
 def cf_access_headers() -> dict[str, str]:
     """CF-Access-Client-Id/Secret headers for a Cloudflare Access service token, if configured.
 
     Optional and additive to the PUBLISH_TOKEN bearer auth — empty dict if the env vars aren't
     set, so requests behave exactly as before Access was added in front of the Worker route.
     """
-    client_id = os.environ.get("WA_COPILOT_CF_ACCESS_CLIENT_ID")
-    client_secret = os.environ.get("WA_COPILOT_CF_ACCESS_CLIENT_SECRET")
+    client_id = _clean_cf_value(os.environ.get("WA_COPILOT_CF_ACCESS_CLIENT_ID"))
+    client_secret = _clean_cf_value(os.environ.get("WA_COPILOT_CF_ACCESS_CLIENT_SECRET"))
     if client_id and client_secret:
         return {"CF-Access-Client-Id": client_id, "CF-Access-Client-Secret": client_secret}
     return {}

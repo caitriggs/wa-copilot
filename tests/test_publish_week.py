@@ -344,3 +344,14 @@ def test_publish_failure_still_sends_review_email(seeded_user, data_root, week, 
     rc = publish_week.main()
     assert sent["n"] == 1        # email sent despite the publish failure
     assert rc == 2               # but the failure is still surfaced
+
+
+def test_cf_access_headers_strips_pasted_header_prefixes(monkeypatch):
+    """If someone pastes the whole 'CF-Access-Client-Id: <id>' line into the secret, the raw
+    token must still be sent — the header name is added by the code, not the value."""
+    monkeypatch.setenv("WA_COPILOT_CF_ACCESS_CLIENT_ID", "CF-Access-Client-Id: abc123.access")
+    monkeypatch.setenv("WA_COPILOT_CF_ACCESS_CLIENT_SECRET", "CF-Access-Client-Secret:  deadbeefsecret")
+    assert publish_week.cf_access_headers() == {
+        "CF-Access-Client-Id": "abc123.access",
+        "CF-Access-Client-Secret": "deadbeefsecret",
+    }
