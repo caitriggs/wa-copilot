@@ -1,14 +1,19 @@
-# Secrets — NEVER commit
+# Secrets — NEVER commit, template or instance (they live in Actions Secrets / keyring)
 .env
 secrets.env
 *.secret
 
-# Local per-user data must never live in the repo (it belongs under the user's Desktop)
+# Generated per-user RUN OUTPUTS are transient (ephemeral on CI runners) — never commit them.
+# NOTE: in a PRIVATE instance repo the user's INPUTS (<user>/config.yaml + <user>/profile/ résumés)
+# ARE committed — that's the instance model. Only the generated subdirs below are ignored.
+*/postings_cache/
+*/applications/
+*/drafts/
+*/packets/
+*/log/
+*/weekly_notes.txt
 users/
 data/
-*.csv
-*.pdf
-*.zip
 
 # Python
 __pycache__/
@@ -16,11 +21,9 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
-
-# Playwright
 .playwright/
 
-# Local config copies (the tracked file is config/user.example.yaml only)
-config/*.local.yaml
+# The shared TEMPLATE tracks only config/user.example.yaml; an INSTANCE additionally commits its
+# own <user>/config.yaml (kept out of config/, so this rule doesn't touch it) + <user>/profile/*.pdf.
 config/*.yaml
 !config/user.example.yaml

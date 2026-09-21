@@ -19,11 +19,19 @@ activities the user actually completed in ESD format, and assembles a claim-read
 - **The log is truthful.** Only activities the user genuinely completed are logged, and only via
   her own confirmation (`log_activity.py`). Never log an application that wasn't really
   submitted.
-- **Data lives locally, never in the repo.** All per-user data lives under that user's
-  **Desktop** (`<Desktop>/wa-unemployment-copilot/<user>/`). Never write data to the repo, and
-  never to G:/H:/any cloud-synced drive (`paths.py` enforces this).
-- **Never commit credentials.** Site logins and SMTP passwords live in the OS keyring
-  (preferred) or a gitignored local `secrets.env`. The config file holds only a `secret_ref`.
+- **No user data in the SHARED template; a PRIVATE instance holds only that user's inputs.** This
+  repo (`wa-copilot`, the shared template) must contain **zero** personal data. A per-user private
+  instance (`wa-copilot-<user>`, made via "Use this template" — see `INSTANCE.md`) is the one place
+  a user's own **inputs** may be committed: `<user>/config.yaml` and `<user>/profile/*.pdf`.
+  Generated run outputs (`postings_cache/`, `applications/`, `drafts/`, `packets/`, `log/`) are
+  transient and git-ignored; approval/submission state lives in the Worker KV, never the repo. When
+  run locally instead, data still belongs under the user's Desktop, never on a cloud-synced drive
+  (`paths.py` refuses G:/H:/cloud paths). The weekly pipeline runs headless on **GitHub Actions**
+  in the instance (`.github/workflows/weekly.yml`), not on a personal always-on machine.
+- **Never commit credentials — anywhere.** Not in the template and not in an instance. Site logins,
+  SMTP password, and API keys live in the instance's GitHub **Actions Secrets** (for CI) or the OS
+  keyring / a gitignored `secrets.env` (for local runs). The config file holds only a `secret_ref`
+  / env name.
 - **Respect source terms.** Prefer official APIs (USAJOBS) and the user's own saved-search
   email/RSS alerts. Login-gated fetch is limited to the authenticated user's OWN account.
 

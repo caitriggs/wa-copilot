@@ -565,16 +565,23 @@ def main() -> int:
         print("[publish_week] env WA_COPILOT_PUBLISH_TOKEN is required (unless --dry-run)", file=sys.stderr)
         return 3
 
+    # Decoupled: a Worker/publish failure must NOT suppress the review email. Attempt the publish,
+    # but ALWAYS send the review email afterward (its dashboard link may point at a stale week if
+    # the publish failed). The failure is still surfaced via a non-zero exit so CI/Actions flags it
+    # — it just no longer costs the user their weekly email (root cause of the 2026-09 outage).
+    publish_ok = True
     try:
         publish(args.worker_url, payload, token)
     except urllib.error.URLError as e:
-        print(f"[publish_week] failed to reach Worker: {e}", file=sys.stderr)
-        return 2
+        publish_ok = False
+        print(f"[publish_week] WARNING: could not reach the Worker; the dashboard was NOT updated "
+              f"this week and its review link may be stale: {e}", file=sys.stderr)
+        print("[publish_week] sending the review email anyway (decoupled from publish).", file=sys.stderr)
 
     send_review_ready_email(args.user, week, args.worker_url, payload, args.data_root,
                             dev=args.dev_test, dev_to=args.dev_to)
 
-    return 0
+    return 0 if publish_ok else 2
 
 
 if __name__ == "__main__":

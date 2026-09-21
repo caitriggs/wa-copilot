@@ -1,0 +1,78 @@
+name: Weekly job pull + review email
+
+# The weekly pipeline for a PRIVATE instance of this template: pull + rank this week's jobs, draft,
+# publish to the review dashboard (Worker/KV), and email the user their "ready to review" link.
+# Replaces the old RADMACHINE + Windows Task Scheduler host — this runs headless on GitHub Actions.
+#
+# It reads the user's committed inputs from this repo (<user>/config.yaml + <user>/profile/*.pdf)
+# with WA_UI_DATA_ROOT pointed at the checkout, and reads all credentials from Actions Secrets
+# (never committed). Approval/CSV state lives in the Worker KV, so nothing is committed back — the
+# runner is stateless and its working tree is discarded after each run.
+#
+# This workflow no-ops on the public TEMPLATE (no secrets there); it does its work only in a
+# private instance where the secrets below are set.
+
+on:
+  schedule:
+    # Friday 5:00pm Pacific. NOTE: cron is UTC and does NOT observe DST, so this fires at 5pm PDT
+    # (summer) / 4pm PST (winter). 00:00 UTC Saturday == 17:00 PDT Friday.
+    - cron: "0 0 * * 6"
+  workflow_dispatch:
+    inputs:
+      dev_test:
+        description: "Dev test: send the review email to the dev recipient with a ?dev=1 link (does NOT email the real user)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: weekly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  weekly:
+    # Skip on the shared template; run only in instances (identified by having the user variable set).
+    if: github.repository != 'caitriggs/wa-copilot'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Weekly pull → publish → review email
+        env:
+          # Data root = the checkout, so <user>/config.yaml + <user>/profile/ resolve.
+          WA_UI_DATA_ROOT: ${{ github.workspace }}
+          # Which user this instance drives (set repo variable COPILOT_USER; defaults to "max").
+          COPILOT_USER: ${{ vars.COPILOT_USER || 'max' }}
+          DEV_TEST: ${{ inputs.dev_test }}
+          # --- email (Gmail SMTP) ---
+          WA_COPILOT_EMAIL_ENABLED: ${{ secrets.WA_COPILOT_EMAIL_ENABLED }}
+          WA_COPILOT_EMAIL_TO: ${{ secrets.WA_COPILOT_EMAIL_TO }}
+          WA_COPILOT_EMAIL_FROM: ${{ secrets.WA_COPILOT_EMAIL_FROM }}
+          WA_COPILOT_EMAIL_DEV_TO: ${{ secrets.WA_COPILOT_EMAIL_DEV_TO }}
+          WA_COPILOT_GMAIL_APP_PASSWORD: ${{ secrets.WA_COPILOT_GMAIL_APP_PASSWORD }}
+          # --- job sources ---
+          WA_COPILOT_USAJOBS: ${{ secrets.WA_COPILOT_USAJOBS }}
+          WA_COPILOT_USAJOBS_EMAIL: ${{ secrets.WA_COPILOT_USAJOBS_EMAIL }}
+          WA_COPILOT_ADZUNA_ID: ${{ secrets.WA_COPILOT_ADZUNA_ID }}
+          WA_COPILOT_ADZUNA_KEY: ${{ secrets.WA_COPILOT_ADZUNA_KEY }}
+          WA_COPILOT_JOOBLE: ${{ secrets.WA_COPILOT_JOOBLE }}
+          WA_COPILOT_CAREERJET_AFFID: ${{ secrets.WA_COPILOT_CAREERJET_AFFID }}
+          # --- dashboard Worker (publish) ---
+          WA_COPILOT_WORKER_URL: ${{ secrets.WA_COPILOT_WORKER_URL }}
+          WA_COPILOT_PUBLISH_TOKEN: ${{ secrets.WA_COPILOT_PUBLISH_TOKEN }}
+          WA_COPILOT_CF_ACCESS_CLIENT_ID: ${{ secrets.WA_COPILOT_CF_ACCESS_CLIENT_ID }}
+          WA_COPILOT_CF_ACCESS_CLIENT_SECRET: ${{ secrets.WA_COPILOT_CF_ACCESS_CLIENT_SECRET }}
+          # --- optional: LLM-tailored ranking/cover letters (fails open if unset) ---
+          WA_COPILOT_ANTHROPIC: ${{ secrets.WA_COPILOT_ANTHROPIC }}
+        run: |
+          set -o pipefail
+          echo "Running weekly pipeline for user '$COPILOT_USER' (dev_test=$DEV_TEST)"
+          python scripts/run_weekly.py --user "$COPILOT_USER" --steps discover,draft,apply,packet
+          if [ "$DEV_TEST" = "true" ]; then
+            python scripts/publish_week.py --user "$COPILOT_USER" --dev-test
+          else
+            python scripts/publish_week.py --user "$COPILOT_USER"
+          fi

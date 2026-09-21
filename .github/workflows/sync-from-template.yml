@@ -1,0 +1,71 @@
+name: Sync from template
+
+# Keeps a PRIVATE instance up to date with the shared template's code (caitriggs/wa-copilot).
+# The template is public, so fetching it needs no auth. On a clean merge it pushes straight to the
+# instance's main; on a conflict (rare — template touches shared code, the instance only adds
+# <user>/config.yaml + <user>/profile/) it opens a PR for you to resolve instead of forcing it.
+#
+# No-ops on the template itself (nothing to sync from). Runs weekly before the Friday job, and on
+# demand via "Run workflow".
+
+on:
+  schedule:
+    - cron: "0 20 * * 4"   # Thursday ~12-1pm Pacific, ahead of the Friday weekly run
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-template
+  cancel-in-progress: false
+
+env:
+  TEMPLATE_REPO: https://github.com/caitriggs/wa-copilot
+  TEMPLATE_SLUG: caitriggs/wa-copilot
+
+jobs:
+  sync:
+    if: github.repository != 'caitriggs/wa-copilot'   # never sync the template from itself
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Merge template → main (PR on conflict)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          git config user.name "wa-copilot-sync[bot]"
+          git config user.email "noreply@github.com"
+          git remote add template "$TEMPLATE_REPO"
+          git fetch --no-tags template main
+
+          if git merge-base --is-ancestor template/main HEAD; then
+            echo "Already up to date with $TEMPLATE_SLUG."
+            exit 0
+          fi
+
+          if git merge --no-edit --no-ff template/main; then
+            git push origin HEAD:main
+            echo "Merged $TEMPLATE_SLUG updates into main."
+          else
+            git merge --abort
+            branch="sync/template-$(date -u +%Y%m%d-%H%M)"
+            git checkout -b "$branch"
+            # Re-do the merge, leaving conflict markers committed, so the PR shows exactly what
+            # needs a human decision.
+            git merge --no-edit template/main || true
+            git add -A
+            git commit -m "Sync from $TEMPLATE_SLUG (CONFLICTS — resolve before merging)" || true
+            git push -u origin "$branch"
+            gh pr create --base main --head "$branch" \
+              --title "Sync from template ($TEMPLATE_SLUG) — resolve conflicts" \
+              --body "Automated template sync hit conflicts (usually shared code vs. this instance's own changes). Resolve the conflict markers on this branch, then merge." \
+              || echo "PR may already exist for $branch"
+            echo "Conflicts — opened a PR for manual resolution."
+            exit 1
+          fi

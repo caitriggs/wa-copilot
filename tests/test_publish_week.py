@@ -321,3 +321,26 @@ def test_dry_run_main_does_not_hit_network(seeded_user, data_root, week, monkeyp
     assert rc == 0
     out = capsys.readouterr().out
     assert '"week": "2026-08-01"' in out
+
+
+def test_publish_failure_still_sends_review_email(seeded_user, data_root, week, monkeypatch):
+    """A Worker PUT failure must NOT suppress the review email (2026-09 outage). main() should
+    still call send_review_ready_email and signal the publish failure via a non-zero exit."""
+    import urllib.error
+    monkeypatch.setattr(sys, "argv", [
+        "publish_week.py", "--user", "testuser", "--week", week,
+        "--data-root", str(data_root), "--worker-url", "https://dash.example",
+    ])
+    monkeypatch.setenv("WA_COPILOT_PUBLISH_TOKEN", "tok")
+
+    def _boom(*a, **k):
+        raise urllib.error.HTTPError("https://dash.example/api/week", 302, "Found", {}, None)
+    monkeypatch.setattr(publish_week, "publish", _boom)
+
+    sent = {"n": 0}
+    monkeypatch.setattr(publish_week, "send_review_ready_email",
+                        lambda *a, **k: sent.__setitem__("n", sent["n"] + 1))
+
+    rc = publish_week.main()
+    assert sent["n"] == 1        # email sent despite the publish failure
+    assert rc == 2               # but the failure is still surfaced
