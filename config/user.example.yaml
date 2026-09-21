@@ -1,0 +1,160 @@
+# wa-unemployment-copilot — per-user configuration TEMPLATE
+# =========================================================
+# Copy this to your OWN data folder as config.yaml (setup_user.py does this for you):
+#     <Desktop>/wa-unemployment-copilot/<user>/config.yaml
+#
+# This file captures ALL of your preferences in one place. It holds NO passwords —
+# secrets (site logins, SMTP password, USAJOBS key) live in the OS keyring or a gitignored
+# local secrets.env, and are referenced here only by name (secret_ref). See README "Secrets".
+
+user: demo                              # short id (a-z0-9-_); selects your Desktop data folder
+display_name: "Jordan L."
+
+email:
+  enabled: true                         # email the weekly reminder + packet to yourself?
+  to: "demo@gmail.com"
+  # from: "demo+jobs@gmail.com"  # optional; defaults to the SMTP login user
+  # Sends over Gmail SMTP (587/STARTTLS) — needs those ports open outbound, so email is tested on a
+  # machine with them open (e.g. RADMACHINE), not from a locked-down cloud session.
+  # Credentials come from keyring/secrets.env (refs: smtp_user, smtp_pass), NOT here. As a fallback
+  # (e.g. a machine without a keyring) the code also reads these env vars:
+  #   WA_COPILOT_EMAIL_TO / WA_COPILOT_EMAIL_FROM
+  #   WA_COPILOT_GMAIL_APP_PASSWORD (-> smtp_pass) / WA_COPILOT_SMTP_USER
+
+profile:
+  linkedin_url: "https://www.linkedin.com/in/your-handle"   # imported for experience/history
+  linkedin_import: "resume"             # resume | export | authed
+                                        #   resume  -> parse profile/resume.pdf (default, compliant)
+                                        #   export  -> parse a LinkedIn "Download your data" zip
+                                        #   authed  -> opt-in authenticated self-profile fetch (ToS-gray)
+  resume_path: "profile/resume.pdf"     # single-résumé mode (used when `resumes` below is unset)
+  data_export_path: "profile/linkedin-export.zip"
+  # OPTIONAL — multiple résumés, each geared to a job-title family. Every job is scored against
+  # ALL of them (one ranked pool, not separate pools); the review email + dashboard show a badge
+  # naming the résumé each job best matches, and its cover letter is drafted from that résumé.
+  # Each résumé's `titles` are added to the week's search so both families are surfaced.
+  # resumes:
+  #   - label: "Test Engineer"
+  #     path: "profile/test-engineer.pdf"
+  #     titles: ["Test Engineer", "SDET", "Automation Engineer"]
+  #   - label: "QA Lead"
+  #     path: "profile/qa-lead.pdf"
+  #     titles: ["QA Lead", "QA Manager", "Quality Manager"]
+
+search:
+  titles:
+    - "Operations Manager"
+    - "Program Manager"
+  locations:
+    - "Seattle, WA"
+    - "Remote"
+  keywords_include: ["operations", "logistics"]
+  keywords_exclude: ["commission-only", "unpaid"]
+  comp_min: 90000                       # total-comp floor (annual, USD). Leave null to disable.
+  weekly_notes: ""                      # EDIT WEEKLY. This is an OVERRIDE, not a nudge: when set, it
+                                        # STEERS the whole week's search + ranking away from the
+                                        # titles/comp above and toward what you write here. It can
+                                        # surface plausible-stretch roles where your past experience
+                                        # overlaps just enough to apply; the cover letter bridges the
+                                        # gap. Examples:
+                                        #   "explore WA State jobs with outdoor or remote flexibility"
+                                        #   "pivot toward marketing analytics at robotics companies"
+                                        # Leave blank to rank purely on your résumé + titles above.
+  focus:
+    enabled: true                       # honor weekly_notes as the override described above (default on)
+
+sources:
+  usajobs:
+    enabled: true                       # official public API; needs a key (secret_ref: usajobs)
+  adzuna:                               # licensed aggregator API — broad private-sector coverage
+    enabled: false                      # set true after storing adzuna_id + adzuna_key
+    country: "us"
+    results_per_page: 25
+    salary_filter: false                # true = ask Adzuna to pre-filter by comp_min. Leave FALSE:
+                                        # Adzuna drops postings without reported salary, so a high
+                                        # floor zeroes results — the pipeline applies comp_min as a
+                                        # soft ranking signal instead.
+  jooble:                               # free aggregator JSON API (secret_ref: jooble)
+    enabled: false                      # set true after storing the jooble key
+  careerjet:                            # free aggregator JSON API (secret_ref: careerjet_affid)
+    enabled: false                      # set true after storing the careerjet affiliate id
+    locale_code: "en_US"
+    results_per_page: 25
+  remotive:                             # official free remote-jobs API — NO key needed
+    enabled: false                      # remote software-dev/QA roles; returns full descriptions
+    results_per_page: 25
+  weworkremotely:                       # official category RSS feeds — NO key needed (all remote)
+    enabled: false
+    categories: ["remote-programming-jobs"]   # add e.g. "remote-devops-sysadmin-jobs"
+  worksourcewa:
+    enabled: true
+    saved_search_rss: ""                # optional real feed URL if you have one; else use email alerts
+  feeds:
+    enabled: true
+    rss_urls: []                        # any saved-search RSS/Atom URLs you have
+  email_alerts:                         # covers Indeed + LinkedIn (they have no usable API/RSS)
+    enabled: false                      # set true after you create job alerts + store IMAP creds
+    imap_host: "imap.gmail.com"
+    mailbox: "INBOX"                    # or a Gmail label you route job alerts to
+    since_days: 7                       # look back this many days for alert emails
+    providers: ["indeed", "linkedin", "worksourcewa"]
+    # IMAP login uses secret_ref imap_user/imap_pass, falling back to smtp_user/smtp_pass.
+  authed:                               # login-gated boards — YOUR OWN account only (Phase 3, opt-in)
+    - { site: "linkedin", enabled: false, secret_ref: "linkedin" }
+
+targets_per_week: 3                     # ESD minimum job-search activities per claim week
+
+draft:
+  llm:                                  # write cover letters with Claude (vs the built-in template)
+    enabled: false                      # set true after storing the anthropic API key (secret_ref: anthropic)
+    model: "claude-sonnet-5"            # best quality; use "claude-haiku-4-5" for cheaper/faster
+    max_words: 300
+    # The writing instructions live in an editable prompt file you can tune:
+    #   <your data folder>/cover_letter_prompt.md   (falls back to repo config/cover_letter_prompt.md)
+
+apply:                                  # OPTIONAL: a local queue.md brief of the top-ranked matches
+  mode: "stage"                         # off | stage | live
+                                        #   stage = write applications/<week>/queue.md (no submit)
+                                        #   live  = DEPRECATED Cowork-executor auto-fill/auto-submit;
+                                        #           use the review dashboard's Submit + your own
+                                        #           apply-by-hand instead (see repo README)
+  top_n: 3                              # how many top-ranked jobs the queue.md brief covers
+  executor: "cowork"                    # only used by the deprecated `live` mode
+
+applicant:                              # info the executor uses to fill application forms (local only)
+  full_name: "Jordan Lee"
+  email: "demo@gmail.com"
+  phone: ""
+  location: "Seattle, WA"
+  work_authorization: "U.S. citizen"    # e.g. "authorized to work in the US, no sponsorship"
+  requires_sponsorship: false
+  willing_to_relocate: false
+  desired_comp: ""                      # optional free text
+  notice_period: "2 weeks"
+  links:
+    linkedin: "https://www.linkedin.com/in/your-handle"
+    github: ""
+    portfolio: ""
+
+claim_assist:                           # OPT-IN eServices helper (Phase 3). Off by default.
+  enabled: false                        # set true only if you want the guided browser helper
+  url: "https://secure.esd.wa.gov/"
+  autofill_attempt: false               # best-effort fill of ACTIVITY fields only (never attestations)
+  headless: false                       # keep false — you log in and certify in a visible browser
+
+discover:
+  # Max concurrent batches for the LLM qualification judge (discover.py) — each batch is its own
+  # Anthropic API call, run in a bounded thread pool so a large fetched pool doesn't blow your API
+  # rate limit. Raise it if you have generous rate limits and want faster runs; lower it (or set
+  # to 1) if you're hitting 429s.
+  # qualification_concurrency: 8
+
+# Ranking weights (transparent; tune to taste). Higher = more influence.
+ranking:
+  comp_fit: 2.0
+  keyword_hits: 1.5
+  title_similarity: 2.0
+  skill_overlap: 1.5
+  weekly_notes_boost: 1.0                # small boost when NO weekly override is active
+  focus_match: 3.5                       # dominant weight when weekly_notes IS steering the week
+  top_n_drafts: 5                       # how many top postings to draft applications for

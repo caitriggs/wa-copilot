@@ -1,0 +1,95 @@
+name: Deploy WA Copilot Worker
+
+# Deploys the Cloudflare Worker in worker/ that serves the review dashboard (web/dashboard.html)
+# and its API. Pattern matches radrigs-website's .github/workflows/deploy-worker.yml
+# (cloudflare/wrangler-action), adapted for this repo's worker + secrets.
+#
+# --- One-time setup required before this workflow can deploy successfully ---
+# 1. Repo secrets (Settings -> Secrets and variables -> Actions):
+#      CLOUDFLARE_API_TOKEN     - Cloudflare API token scoped to this account, with
+#                                 "Workers Scripts: Edit" and "Workers KV Storage: Edit"
+#                                 permissions (Account.Workers Scripts / Account.Workers KV Storage).
+#      CLOUDFLARE_ACCOUNT_ID    - the Cloudflare account id the Worker deploys to.
+#      WA_COPILOT_PUBLISH_TOKEN - the bearer token that gates the Worker's RADMACHINE-facing
+#                                 routes (PUT /api/week, GET /api/approvals). Generate any
+#                                 random secret value; the SAME value must also be set as a
+#                                 RADMACHINE env var (WA_COPILOT_PUBLISH_TOKEN) so
+#                                 scripts/publish_week.py / fetch_approvals.py can authenticate.
+# 2. KV namespace: worker/wrangler.toml's WA_COPILOT_KV binding still has a placeholder id
+#    ("REPLACE_WITH_KV_NAMESPACE_ID"). Run this workflow manually once via the Actions tab
+#    ("Run workflow" -> check "bootstrap_kv") to create the real namespace. Wrangler prints the
+#    new namespace id in the job log (KV ids are not secret) — copy it into
+#    worker/wrangler.toml's [[kv_namespaces]] id field and commit that change. Only after that
+#    will normal deploys (push to main, or manual dispatch without bootstrap_kv) succeed, since
+#    wrangler deploy fails against a placeholder KV id.
+# 3. Cloudflare Access (Zero Trust) in front of the deployed route, gating the dashboard to your
+#    Google identity, is a separate manual step in the Cloudflare dashboard — not covered by
+#    this workflow or by wrangler.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - "web/dashboard.html"
+      - ".github/workflows/deploy-wa-copilot-worker.yml"
+
+  workflow_dispatch:
+    inputs:
+      bootstrap_kv:
+        description: >-
+          One-time setup only: create the WA_COPILOT_KV namespace and print its id in the
+          job log (does NOT deploy the worker). Leave unchecked for a normal manual deploy.
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  bootstrap-kv:
+    name: Bootstrap WA_COPILOT_KV namespace (one-time, manual only)
+    if: github.event_name == 'workflow_dispatch' && inputs.bootstrap_kv == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Create WA_COPILOT_KV namespace
+        uses: cloudflare/wrangler-action@v3.14.1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: kv namespace create WA_COPILOT_KV
+          # Output includes the new namespace id (not secret) — check this job's log,
+          # then paste the id into worker/wrangler.toml under [[kv_namespaces]] id = "..."
+          # and commit. Re-running this job after that is harmless (creates a second,
+          # unused namespace) but unnecessary.
+
+  deploy:
+    name: Deploy wa-copilot-dashboard worker
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bootstrap_kv != true)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Deploy worker + sync secrets
+        uses: cloudflare/wrangler-action@v3.14.1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          # Secrets listed here are read from env (below) and pushed to the Worker via
+          # `wrangler secret put`. Add a new line here + a matching env entry for any
+          # additional Worker secret.
+          secrets: |
+            PUBLISH_TOKEN
+        env:
+          # GitHub repo secret          -> Worker secret (env)
+          # WA_COPILOT_PUBLISH_TOKEN    -> PUBLISH_TOKEN
+          PUBLISH_TOKEN: ${{ secrets.WA_COPILOT_PUBLISH_TOKEN }}

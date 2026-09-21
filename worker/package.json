@@ -1,0 +1,9 @@
+{
+  "name": "wa-copilot-dashboard",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker for the Job Search Copilot review dashboard.",
+  "scripts": {
+    "test": "node --test"
+  }
+}

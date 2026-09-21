@@ -1,0 +1,21 @@
+name = "wa-copilot-dashboard"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# Import the dashboard HTML (../web/dashboard.html) as a plain text string at build time,
+# so web/dashboard.html stays the single source of truth for the UI.
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+# KV namespace for staged weeks + approvals.
+# The id below is a placeholder — create the real namespace at deploy time with:
+#   wrangler kv namespace create WA_COPILOT_KV
+# then paste the returned id here (and an id under [env.*] if using environments).
+[[kv_namespaces]]
+binding = "WA_COPILOT_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Secrets (never set here — see worker/README.md):
+#   wrangler secret put PUBLISH_TOKEN

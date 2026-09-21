@@ -1,0 +1,15 @@
+# wa-unemployment-copilot — dependencies (stdlib-first; optional deps degrade gracefully)
+PyYAML>=6.0            # per-user config parsing
+requests>=2.31         # USAJOBS API + RSS fetch
+
+# --- optional, feature-gated (the code runs without them, with reduced features) ---
+keyring>=24.0          # OS credential store (Windows Credential Manager). Fallback: secrets.env
+feedparser>=6.0        # saved-search RSS ingest (sources/feeds.py)
+pdfplumber>=0.10       # resume parsing (profile_import.py — Phase 2)
+markdown>=3.5          # nicer packet HTML email (mailer falls back to a built-in converter)
+anthropic>=0.40        # LLM-written cover letters (draft.llm) — falls back to template if absent
+# playwright>=1.40      # Phase 3 assisted claim helper (claim_assist.py) + login-gated sources.
+#                       # Install only if you use those: pip install playwright && playwright install chromium
+
+# --- dev ---
+pytest>=7.4

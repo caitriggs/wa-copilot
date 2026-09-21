@@ -1,0 +1,26 @@
+# Secrets — NEVER commit
+.env
+secrets.env
+*.secret
+
+# Local per-user data must never live in the repo (it belongs under the user's Desktop)
+users/
+data/
+*.csv
+*.pdf
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Playwright
+.playwright/
+
+# Local config copies (the tracked file is config/user.example.yaml only)
+config/*.local.yaml
+config/*.yaml
+!config/user.example.yaml

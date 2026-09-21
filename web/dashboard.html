@@ -1,0 +1,984 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Search Copilot — Weekly Review</title>
+<style>
+  :root {
+    color-scheme: light;
+    /* Periwinkle "drafting surface" — matches the weekly-review email (src/copilot/email_render.py). */
+    --bg: #E7E9F8;          /* light periwinkle page */
+    --hero-bg: #DADDF4;     /* deeper periwinkle header/hero panel */
+    --card-bg: #F4F5FD;     /* near-white lavender cards */
+    --border: #C9CEEE;      /* thin periwinkle rule */
+    --grid-line: #CDD1EF;   /* graph-paper lines */
+    --text: #23264D;        /* deep indigo ink */
+    --muted: #6E739B;       /* periwinkle-gray */
+    --label: #5B60A6;       /* letter-spaced mono labels */
+    --accent: #2E2FA6;      /* deep indigo */
+    --accent-text: #ffffff;
+    --good: #2f7d5b;        /* success (toast/status) that reads on periwinkle */
+    --chip-bg: #E3E6F8;
+    --chip-text: #3A3D86;
+    --panel-bg: #ECEEFA;    /* cover-letter panel: a hair off the card */
+    --mono: 'SFMono-Regular', 'DejaVu Sans Mono', 'Menlo', 'Consolas', 'Courier New', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 18px; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    /* Graph-paper grid is the page background (behind all the cards); flat periwinkle fallback
+       for clients that drop background images. Tile matches email_render.py's 24px grid. */
+    background-color: var(--bg);
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%3E%3Crect%20width='24'%20height='24'%20fill='%23E7E9F8'/%3E%3Cpath%20d='M24%200H0V24'%20fill='none'%20stroke='%23CDD1EF'%20stroke-width='1'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    color: var(--text);
+    padding-bottom: 100px;
+    line-height: 1.45;
+  }
+  header {
+    padding: 22px 16px 6px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  header .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--label);
+    margin: 0 0 6px;
+  }
+  header h1 {
+    font-family: var(--mono);
+    font-size: 1.7rem;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+  }
+  header .week {
+    font-family: var(--mono);
+    color: var(--muted);
+    font-size: 0.95rem;
+    letter-spacing: 0.03em;
+  }
+  .rank-label {
+    max-width: 900px;
+    margin: 18px auto 0;
+    padding: 0 16px;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--label);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    max-width: 900px;
+    margin: 14px auto;
+    padding: 0 16px;
+  }
+  .metric {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+  }
+  .metric .num {
+    font-family: var(--mono);
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .metric .label {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .job {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .job-row {
+    padding: 16px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    cursor: pointer;
+  }
+  .job input[type="checkbox"] {
+    width: 28px;
+    height: 28px;
+    margin-top: 2px;
+    accent-color: var(--accent);
+    flex-shrink: 0;
+  }
+  .job-body { flex: 1; min-width: 0; }
+  .job-title {
+    font-family: var(--mono);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0 0 3px;
+  }
+  .job-org {
+    color: var(--muted);
+    font-size: 1.1rem;
+    margin: 0 0 10px;
+  }
+  .job-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    margin-bottom: 10px;
+    align-items: center;
+  }
+  .job-meta span {
+    font-size: 1rem;
+    color: var(--muted);
+  }
+  .score-chip {
+    display: inline-block;
+    background: var(--chip-bg);
+    color: var(--chip-text);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+  .resume-chip {
+    display: inline-block;
+    background: var(--hero-bg);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+  .factor-chip {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    padding: 4px 2px;
+  }
+  .why {
+    font-size: 1.05rem;
+    color: var(--text);
+    opacity: 0.85;
+    margin: 0 0 10px;
+  }
+  .job-link {
+    display: inline-block;
+    font-size: 1.05rem;
+    color: var(--accent);
+    text-decoration: none;
+    padding: 4px 0;
+  }
+  .job-link:hover { text-decoration: underline; }
+  .cover-letter-panel {
+    border-top: 1px solid var(--border);
+    background: var(--panel-bg);
+    padding: 14px 16px 16px;
+  }
+  .cover-letter-panel[hidden] { display: none; }
+  .cover-letter-panel label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .cover-letter-panel textarea {
+    width: 100%;
+    min-height: 180px;
+    font-size: 1.1rem;
+    font-family: inherit;
+    line-height: 1.5;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card-bg);
+    color: var(--text);
+    resize: vertical;
+  }
+  .cover-letter-panel .empty-cl {
+    font-size: 1.05rem;
+    color: var(--muted);
+    font-style: italic;
+    margin: 0;
+  }
+  .show-more {
+    display: block;
+    width: 100%;
+    background: var(--card-bg);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    cursor: pointer;
+    min-height: 48px;
+  }
+  .empty, .error {
+    text-align: center;
+    color: var(--muted);
+    padding: 40px 16px;
+    font-size: 1.1rem;
+  }
+  .error { color: #dc2626; }
+  .submit-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    align-items: center;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  }
+  .submit-bar .inner {
+    max-width: 900px;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .submit-bar .count {
+    font-size: 1rem;
+    color: var(--muted);
+  }
+  .submit-bar button {
+    background: var(--accent);
+    color: var(--accent-text);
+    border: none;
+    border-radius: 8px;
+    padding: 14px 22px;
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    min-height: 48px;
+  }
+  .submit-bar button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .toast {
+    position: fixed;
+    bottom: 84px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--good);
+    color: #06240f;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    max-width: calc(100% - 32px);
+    text-align: center;
+  }
+  .toast.show { opacity: 1; }
+  .submitted-section {
+    max-width: 900px;
+    margin: 0 auto 18px;
+    padding: 0 16px;
+  }
+  .submitted-section[hidden] { display: none; }
+  .submitted-section h2 {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--label);
+    margin: 0 0 10px;
+  }
+  .submitted-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .submitted-item {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .submitted-item .title {
+    font-weight: 600;
+    margin: 0 0 2px;
+  }
+  .submitted-item .org {
+    color: var(--muted);
+    font-size: 1rem;
+    margin: 0 0 6px;
+  }
+  .submitted-item a {
+    color: var(--accent);
+    font-size: 1rem;
+    text-decoration: none;
+  }
+  .submitted-item a:hover { text-decoration: underline; }
+  .submitted-help {
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin: 0 0 12px;
+  }
+  /* :not([hidden]) matters here: an unqualified `display: flex` on this class has EQUAL CSS
+     specificity to the UA stylesheet's `[hidden] { display: none }`, and author styles win ties —
+     so without this guard, setting the `hidden` attribute on this element (see
+     showBottomBarActions() below) silently does nothing and it stays visible, showing the Submit
+     button and the CSV/CoWork buttons at the same time instead of swapping between them. */
+  .submit-bar-actions:not([hidden]) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .artifact-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent);
+    color: var(--accent-text);
+    border: none;
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-decoration: none;
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .artifact-btn.secondary {
+    background: var(--card-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .artifact-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .steer-section {
+    max-width: 900px;
+    margin: 0 auto 18px;
+    padding: 0 16px;
+  }
+  .steer-section h2 {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--label);
+    margin: 0 0 6px;
+  }
+  .steer-help {
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin: 0 0 10px;
+  }
+  .steer-section textarea {
+    width: 100%;
+    min-height: 80px;
+    font-size: 1.05rem;
+    font-family: inherit;
+    line-height: 1.5;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card-bg);
+    color: var(--text);
+    resize: vertical;
+  }
+  .steer-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+  }
+  .steer-section button {
+    background: var(--accent);
+    color: var(--accent-text);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .steer-section button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .steer-status { font-size: 0.95rem; color: var(--good); }
+  .dev-banner {
+    display: none;
+    background: #C62828;
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin: 0 0 18px;
+    text-align: center;
+  }
+  .dev-banner.on { display: block; }
+</style>
+
+<header>
+  <div class="eyebrow">Job Search Copilot</div>
+  <h1>Weekly Review</h1>
+  <div class="week" id="week-label">Loading week&hellip;</div>
+</header>
+
+<div class="dev-banner" id="dev-banner">Dev / test mode &mdash; Submit will NOT be recorded</div>
+
+<div class="metrics" id="metrics"></div>
+
+<div class="submitted-section" id="submitted-section" hidden>
+  <h2>Ready to apply</h2>
+  <p class="submitted-help" id="submitted-help">Apply to each yourself from its link &mdash; or grab your submissions CSV and a Claude CoWork prompt that fills each form for your review before you submit. Both are rebuilt live from your current picks, so you can pull a fresh copy any time. Find the buttons at the bottom of the page.</p>
+  <ul class="submitted-list" id="submitted-list"></ul>
+</div>
+
+<div class="steer-section" id="steer-section">
+  <h2>Steer next week&rsquo;s search</h2>
+  <p class="steer-help">Optional. A note here overrides next week&rsquo;s search &amp; ranking &mdash; e.g. &ldquo;more remote roles&rdquo;, &ldquo;lean toward marketing analytics&rdquo;, &ldquo;explore WA State jobs&rdquo;. Leave blank to rank on your r&eacute;sum&eacute; &amp; usual titles.</p>
+  <textarea id="steer-notes" placeholder="What should next week&rsquo;s job search focus on?"></textarea>
+  <div class="steer-row">
+    <button id="steer-save" type="button">Save note</button>
+    <span class="steer-status" id="steer-status"></span>
+  </div>
+</div>
+
+<div class="rank-label" id="rank-label" hidden>Top matches</div>
+
+<main id="jobs">
+  <div class="empty">Loading jobs&hellip;</div>
+</main>
+
+<div class="submit-bar">
+  <div class="inner">
+    <span class="count" id="approve-count">0 selected</span>
+    <button id="submit-btn" disabled>Submit approved</button>
+    <div class="submit-bar-actions" id="submit-bar-actions" hidden>
+      <a class="artifact-btn" id="download-csv-btn" href="/api/approvals/csv" download>Download CSV</a>
+      <button class="artifact-btn secondary" id="copy-prompt-btn" type="button">Copy CoWork prompt</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  var TOP_N = 5;
+  // dev flag comes from the ?dev=1 link in a --dev-test review email: the page shows a red banner
+  // and every Submit is sent as a non-recording dev run the Worker won't write to KV.
+  var DEV = new URLSearchParams(location.search).get("dev") === "1";
+
+  // --- client-side artifact generation, DEV MODE ONLY ---------------------------------------
+  // A dev Submit records nothing in KV (see /api/approve), so the server's KV-backed
+  // GET /api/approvals/csv and GET /api/approvals/cowork-prompt have nothing real to serve for a
+  // dev run. These are faithful ports of worker/src/artifacts.js (same CSV columns, same prompt
+  // wording/guardrails) built entirely from what's already in this browser: the picks just
+  // submitted (full job objects from /api/week, each carrying its `resume` badge), plus
+  // `applicant`/`resumes` (also from /api/week — see load() below). Never used in prod, where the
+  // server routes remain the single, revisitable source of truth.
+  var CSV_FIELDS = ["date", "job_title", "company", "application_link", "status", "week", "job_id", "resume_file"];
+
+  function csvCell(value) {
+    var s = value == null ? "" : String(value);
+    if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  function buildSubmissionsCsvClient(week, jobs, resumes) {
+    var resumeMap = resumes || {};
+    var today = new Date().toISOString().slice(0, 10);
+    var lines = [CSV_FIELDS.join(",")];
+    (jobs || []).forEach(function (j) {
+      var row = {
+        date: today, job_title: j.title || "", company: j.org || "",
+        application_link: j.url || "", status: "to apply", week: week, job_id: j.id || "",
+        resume_file: (j.resume && resumeMap[j.resume]) ? resumeMap[j.resume] : "",
+      };
+      lines.push(CSV_FIELDS.map(function (f) { return csvCell(row[f]); }).join(","));
+    });
+    return lines.join("\n") + "\n";
+  }
+
+  function buildCoworkPromptClient(week, jobs, applicant, resumes) {
+    var a = applicant || {};
+    var links = (a.links && typeof a.links === "object") ? a.links : {};
+    function line(label, val) { return val ? "     - " + label + ": " + val : ""; }
+    var details = [
+      line("Name", a.full_name), line("Email", a.email), line("Phone", a.phone),
+      line("Location", a.location), line("Work authorization", a.work_authorization),
+      line("Willing to relocate", a.willing_to_relocate), line("Notice period", a.notice_period),
+      line("LinkedIn", links.linkedin), line("GitHub", links.github), line("Portfolio", links.portfolio),
+    ].filter(Boolean).join("\n");
+
+    var resumeMap = resumes || {};
+    var names = [];
+    (jobs || []).forEach(function (j) {
+      var f = (j.resume && resumeMap[j.resume]) ? resumeMap[j.resume] : "";
+      if (f && names.indexOf(f) === -1) names.push(f);
+    });
+    var resumeDir = "~/Desktop/wa-unemployment-copilot/";
+    var resumeHint = names.length
+      ? " (the CSV's resume_file column names which résumé we matched to that job — e.g. " +
+        names.join(", ") + " — use it as a hint if it helps, but match by title/content; the " +
+        "filenames in that folder don't need to match exactly)"
+      : "";
+    var csvFilename = "submitted_jobs.csv";
+
+    return (
+      "You are running in Claude CoWork on MY OWN desktop with browser access (my own CoWork " +
+      "login, not a shared machine). Help me apply to the jobs I selected for the week ending " +
+      week + ".\n\n" +
+      "The job list is at ~/Downloads/" + csvFilename + " on this computer.\n\n" +
+      "My résumé(s) are saved in " + resumeDir + " — there may be more than one, each geared " +
+      "toward a different type of role.\n\n" +
+      "Open " + csvFilename + " and, for EACH row whose status is \"to apply\":\n" +
+      "  1. Open its application_link in the browser.\n" +
+      "  2. Fill the application form using my details:\n" + details + "\n" +
+      "     - Résumé: from " + resumeDir + ", pick whichever résumé best fits this job's title " +
+      "and content" + resumeHint + ".\n" +
+      "     Tailor answers to the role using the posting's own text for screening questions.\n" +
+      "  3. STOP before submitting and let me review the filled form — I click submit myself.\n" +
+      "  4. After I confirm I submitted, set that row's status to \"applied\" (with today's date) " +
+      "in the CSV.\n\n" +
+      "Only use facts from my résumé — never invent experience, and never submit without my ok."
+    );
+  }
+  var state = { week: null, jobs: [], applicant: {}, resumes: {}, submittedJobs: [] };
+  var selected = {};       // jobId -> true
+  var coverLetters = {};   // jobId -> current (possibly edited) cover letter text
+  var showAll = false;
+  var devCsvUrl = null;    // last dev-mode CSV blob URL, revoked before each replacement
+
+  var jobsEl = document.getElementById("jobs");
+  var metricsEl = document.getElementById("metrics");
+  var rankLabelEl = document.getElementById("rank-label");
+  var weekLabelEl = document.getElementById("week-label");
+  var countEl = document.getElementById("approve-count");
+  var submitBtn = document.getElementById("submit-btn");
+  var toastEl = document.getElementById("toast");
+  var submittedSectionEl = document.getElementById("submitted-section");
+  var submittedListEl = document.getElementById("submitted-list");
+  var submittedHelpEl = document.getElementById("submitted-help");
+  // The Download CSV / Copy CoWork-prompt buttons live in the sticky bottom bar (where "Submit
+  // approved" was) so they're visible without scrolling back up — not in the "Ready to apply"
+  // section itself, which keeps only the explanatory text + submitted-job list.
+  var submitBarActionsEl = document.getElementById("submit-bar-actions");
+  var downloadCsvBtn = document.getElementById("download-csv-btn");
+  var copyPromptBtn = document.getElementById("copy-prompt-btn");
+  var devBannerEl = document.getElementById("dev-banner");
+  if (DEV && devBannerEl) devBannerEl.classList.add("on");
+  var steerNotesEl = document.getElementById("steer-notes");
+  var steerSaveBtn = document.getElementById("steer-save");
+  var steerStatusEl = document.getElementById("steer-status");
+
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function renderMetrics(m) {
+    m = m || {};
+    var items = [
+      { label: "Surfaced", value: m.surfaced },
+      { label: "Approved", value: m.approved },
+      { label: "Applied (logged)", value: m.applied_logged },
+      { label: "Responses", value: m.responses },
+    ];
+    metricsEl.innerHTML = items.map(function (it) {
+      return '<div class="metric"><div class="num">' + escapeHtml(it.value != null ? it.value : "—") +
+        '</div><div class="label">' + escapeHtml(it.label) + "</div></div>";
+    }).join("");
+  }
+
+  function jobHtml(j) {
+    var comp = j.comp ? escapeHtml(j.comp) : "n/a";
+    var loc = j.location ? escapeHtml(j.location) : "n/a";
+    var why = j.why_matched ? escapeHtml(j.why_matched) : "";
+    // match_pct is the SAME 0-100 value computed once in discover.py and sent verbatim in the
+    // weekly-review email — never a separately-derived number, so the board and the email agree.
+    var pct = (j.match_pct != null) ? escapeHtml(j.match_pct) + "%" : "—";
+    var factor = j.top_factor ? "Surfaced for: " + escapeHtml(j.top_factor) : "";
+    var isSelected = !!selected[j.id];
+    var link = j.url
+      ? '<a class="job-link" href="' + escapeHtml(j.url) + '" target="_blank" rel="noopener noreferrer">View posting &rarr;</a>'
+      : '<span class="job-link" style="opacity:.5">No link</span>';
+    var clText = coverLetters.hasOwnProperty(j.id) ? coverLetters[j.id] : (j.cover_letter || "");
+    var clPanel = '<div class="cover-letter-panel"' + (isSelected ? "" : " hidden") + ' data-panel-for="' + escapeHtml(j.id) + '">' +
+      '<label for="cl-' + escapeHtml(j.id) + '">Cover letter (editable)</label>' +
+      (clText
+        ? '<textarea id="cl-' + escapeHtml(j.id) + '" data-cl-id="' + escapeHtml(j.id) + '">' + escapeHtml(clText) + "</textarea>"
+        : '<p class="empty-cl">No draft cover letter for this job yet.</p>') +
+      "</div>";
+    return (
+      '<div class="job" data-job-id="' + escapeHtml(j.id) + '">' +
+        '<label class="job-row">' +
+          '<input type="checkbox" data-id="' + escapeHtml(j.id) + '"' + (isSelected ? " checked" : "") + ' />' +
+          '<div class="job-body">' +
+            '<p class="job-title">' + escapeHtml(j.title) + "</p>" +
+            '<p class="job-org">' + escapeHtml(j.org) + "</p>" +
+            '<div class="job-meta">' +
+              "<span>" + loc + "</span><span>&middot;</span><span>" + comp + "</span>" +
+              '<span class="score-chip">Match ' + pct + "</span>" +
+              (j.resume ? '<span class="resume-chip">' + escapeHtml(j.resume) + "</span>" : "") +
+              (factor ? '<span class="factor-chip">' + factor + "</span>" : "") +
+            "</div>" +
+            (why ? '<p class="why">' + why + "</p>" : "") +
+            link +
+          "</div>" +
+        "</label>" +
+        clPanel +
+      "</div>"
+    );
+  }
+
+  // Both self-serve artifacts default to the current published week server-side; pin the week the
+  // dashboard is actually showing so a bookmarked/older week still downloads the right file.
+  function artifactUrl(path) {
+    return path + (state.week ? "?week=" + encodeURIComponent(state.week) : "");
+  }
+
+  // Swap the sticky bottom bar between "Submit approved" and the Download/Copy actions. Called
+  // whenever renderSubmitted's jobs list changes (a fresh submit in either mode, or restoring a
+  // prior prod submission on page load) so the bar always matches what's actually on screen.
+  function showBottomBarActions(show) {
+    if (submitBtn) submitBtn.hidden = show;
+    if (submitBarActionsEl) submitBarActionsEl.hidden = !show;
+  }
+
+  function renderSubmitted(jobs) {
+    if (!jobs || jobs.length === 0) {
+      submittedSectionEl.hidden = true;
+      submittedListEl.innerHTML = "";
+      showBottomBarActions(false);
+      return;
+    }
+    state.submittedJobs = jobs;
+    submittedSectionEl.hidden = false;
+    showBottomBarActions(true);
+
+    // The job list is rendered FIRST, independently of the artifact buttons below, and wrapped on
+    // its own — a failure building the CSV/prompt (a browser quirk, an unexpected field, anything)
+    // must never blank the whole section or hide the list of what was actually submitted. Every
+    // piece below is similarly isolated so one failing artifact can't take the others down with it.
+    try {
+      submittedListEl.innerHTML = jobs.map(function (j) {
+        var link = j.url
+          ? '<a href="' + escapeHtml(j.url) + '" target="_blank" rel="noopener noreferrer">Application link &rarr;</a>'
+          : '<span style="opacity:.5">No link on file</span>';
+        return (
+          '<li class="submitted-item">' +
+            '<p class="title">' + escapeHtml(j.title) + "</p>" +
+            (j.org ? '<p class="org">' + escapeHtml(j.org) + "</p>" : "") +
+            link +
+          "</li>"
+        );
+      }).join("");
+    } catch (err) {
+      console.error("renderSubmitted: could not render the job list", err);
+      submittedListEl.innerHTML = '<li class="submitted-item">' + jobs.length + ' job(s) submitted — could not render details.</li>';
+    }
+
+    if (DEV) {
+      // A dev submit records nothing in KV, so the server's KV-backed CSV/prompt routes have
+      // nothing to serve — power both buttons from the picks + applicant/résumé data already in
+      // this browser instead (see buildSubmissionsCsvClient/buildCoworkPromptClient above).
+      if (submittedHelpEl) submittedHelpEl.textContent =
+        "Dev / test run — this Submit was NOT recorded. The CSV and CoWork prompt buttons at the bottom of the page are generated locally from what you just selected, so you can safely test them.";
+      if (downloadCsvBtn) {
+        try {
+          if (devCsvUrl) URL.revokeObjectURL(devCsvUrl);
+          var csvText = buildSubmissionsCsvClient(state.week, jobs, state.resumes);
+          var blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
+          devCsvUrl = URL.createObjectURL(blob);
+          downloadCsvBtn.href = devCsvUrl;
+          downloadCsvBtn.setAttribute("download", "submitted_jobs.csv");
+          downloadCsvBtn.title = "";
+        } catch (err) {
+          console.error("renderSubmitted: could not build the dev CSV", err);
+          devCsvUrl = null;
+          downloadCsvBtn.removeAttribute("href");
+          downloadCsvBtn.title = "Could not build the CSV in this browser — see console for details.";
+        }
+      }
+    } else {
+      // DEV and prod never interleave in one page session (DEV is fixed from the URL at load), so
+      // this never needs to undo the dev branch's blob href/attribute from above.
+      if (downloadCsvBtn) downloadCsvBtn.href = artifactUrl("/api/approvals/csv");
+    }
+  }
+
+  function loadSubmitted() {
+    // In dev mode the section is driven only by a dev Submit click (which records nothing); don't
+    // prefill it from the real prod approvals, which would show unrelated picks under the dev note.
+    if (DEV) return;
+    fetch("/api/approvals/current")
+      .then(function (r) { return r.ok ? r.json() : { jobs: [] }; })
+      .then(function (data) { renderSubmitted(data.jobs || []); })
+      .catch(function () { /* non-critical; leave section hidden */ });
+  }
+
+  function renderJobs() {
+    var jobs = state.jobs;
+    if (!jobs || jobs.length === 0) {
+      rankLabelEl.hidden = true;
+      jobsEl.innerHTML = '<div class="empty">No jobs staged for this week.</div>';
+      return;
+    }
+
+    var visible = showAll ? jobs : jobs.slice(0, TOP_N);
+    rankLabelEl.hidden = false;
+    rankLabelEl.textContent = showAll ? "All " + jobs.length + " matches" : "Top " + Math.min(TOP_N, jobs.length) + " matches";
+
+    var html = visible.map(jobHtml).join("");
+    if (jobs.length > TOP_N) {
+      html += '<button type="button" class="show-more" id="show-more-btn">' +
+        (showAll ? "Show top " + TOP_N + " only" : "Show all " + jobs.length + " jobs") +
+        "</button>";
+    }
+    jobsEl.innerHTML = html;
+
+    Array.prototype.forEach.call(jobsEl.querySelectorAll('input[type="checkbox"]'), function (cb) {
+      cb.addEventListener("change", onCheckboxChange);
+    });
+    Array.prototype.forEach.call(jobsEl.querySelectorAll('textarea[data-cl-id]'), function (ta) {
+      ta.addEventListener("input", onCoverLetterInput);
+      ta.addEventListener("click", function (e) { e.stopPropagation(); });
+    });
+    var showMoreBtn = document.getElementById("show-more-btn");
+    if (showMoreBtn) {
+      showMoreBtn.addEventListener("click", function () {
+        showAll = !showAll;
+        renderJobs();
+      });
+    }
+
+    updateCount();
+  }
+
+  function onCheckboxChange(e) {
+    var id = e.target.getAttribute("data-id");
+    selected[id] = e.target.checked;
+    var panel = jobsEl.querySelector('[data-panel-for="' + CSS.escape(id) + '"]');
+    if (panel) panel.hidden = !e.target.checked;
+    updateCount();
+  }
+
+  function onCoverLetterInput(e) {
+    var id = e.target.getAttribute("data-cl-id");
+    coverLetters[id] = e.target.value;
+  }
+
+  function updateCount() {
+    var ids = Object.keys(selected).filter(function (id) { return selected[id]; });
+    countEl.textContent = ids.length + " selected";
+    submitBtn.disabled = ids.length === 0;
+  }
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    setTimeout(function () { toastEl.classList.remove("show"); }, 2500);
+  }
+
+  function load() {
+    fetch("/api/week")
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        state.week = data.week || null;
+        // applicant/resumes ride along on /api/week (see worker/src/index.js handleGetWeek) —
+        // only actually used by the dev-mode client-side artifact builders above, but harmless
+        // to capture unconditionally.
+        state.applicant = (data.applicant && typeof data.applicant === "object") ? data.applicant : {};
+        state.resumes = (data.resumes && typeof data.resumes === "object") ? data.resumes : {};
+        state.jobs = (data.jobs || []).slice().sort(function (a, b) {
+          var sa = typeof a.match_score === "number" ? a.match_score : -Infinity;
+          var sb = typeof b.match_score === "number" ? b.match_score : -Infinity;
+          return sb - sa;
+        });
+        state.jobs.forEach(function (j) {
+          coverLetters[j.id] = j.cover_letter || "";
+        });
+        weekLabelEl.textContent = state.week ? "Week ending " + state.week : "No week published yet";
+        if (steerNotesEl && document.activeElement !== steerNotesEl) {
+          steerNotesEl.value = data.notes || "";
+        }
+        renderMetrics(data.metrics);
+        renderJobs();
+      })
+      .catch(function (err) {
+        rankLabelEl.hidden = true;
+        jobsEl.innerHTML = '<div class="error">Could not load this week’s jobs: ' + escapeHtml(err.message) + "</div>";
+      });
+  }
+
+  submitBtn.addEventListener("click", function () {
+    var approved = Object.keys(selected).filter(function (id) { return selected[id]; });
+    if (approved.length === 0 || !state.week) return;
+    var clPayload = {};
+    approved.forEach(function (id) { clPayload[id] = coverLetters[id] || ""; });
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting…";
+    fetch("/api/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ week: state.week, approved: approved, cover_letters: clPayload, dev: DEV }),
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function () {
+        var n = approved.length, plural = n === 1 ? "" : "s";
+        showToast(DEV
+          ? "Dev run — " + n + " pick" + plural + " NOT recorded. Test the CSV & CoWork prompt below."
+          : "Submitted " + n + " job" + plural + " — grab your CSV & CoWork prompt below.");
+        submitBtn.textContent = "Submit approved";
+        renderSubmitted(state.jobs.filter(function (j) { return selected[j.id]; }));
+        updateCount();
+      })
+      .catch(function (err) {
+        showToast("Submit failed: " + err.message);
+        submitBtn.textContent = "Submit approved";
+        submitBtn.disabled = false;
+      });
+  });
+
+  function copyPromptText(text) {
+    if (!text) return Promise.reject(new Error("empty prompt"));
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(
+        function () { showToast("CoWork prompt copied to clipboard."); },
+        // Clipboard API blocked (permissions/older browser) — fall back to a selectable prompt().
+        function () { window.prompt("Copy the CoWork prompt:", text); }
+      );
+    }
+    window.prompt("Copy the CoWork prompt:", text);
+    return Promise.resolve();
+  }
+
+  if (copyPromptBtn) {
+    copyPromptBtn.addEventListener("click", function () {
+      copyPromptBtn.disabled = true;
+      var prev = copyPromptBtn.textContent;
+      copyPromptBtn.textContent = "Copying…";
+      var done = function () { copyPromptBtn.textContent = prev; copyPromptBtn.disabled = false; };
+      if (DEV) {
+        // Built locally from the just-submitted picks — nothing was recorded server-side to fetch.
+        // Wrapped: a synchronous build failure here must still leave the button usable again
+        // (reset + a toast) rather than stuck disabled on "Copying…" with no feedback.
+        try {
+          var text = buildCoworkPromptClient(state.week, state.submittedJobs, state.applicant, state.resumes);
+          copyPromptText(text).catch(function (err) { showToast("Could not copy prompt: " + err.message); }).then(done);
+        } catch (err) {
+          console.error("copyPromptBtn: could not build the dev prompt", err);
+          showToast("Could not build prompt: " + err.message);
+          done();
+        }
+        return;
+      }
+      fetch(artifactUrl("/api/approvals/cowork-prompt"))
+        .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then(function (data) { return copyPromptText((data && data.prompt) || ""); })
+        .catch(function (err) { showToast("Could not get prompt: " + err.message); })
+        .then(done);
+    });
+  }
+
+  if (steerSaveBtn) {
+    steerSaveBtn.addEventListener("click", function () {
+      // Trim before sending so a box left with only spaces/newlines after deleting text is
+      // treated as cleared, not as "some note" — mirrors the Worker's own normalization
+      // (defense in depth; the Worker trims too, but this also lets the UI reflect the cleared
+      // state immediately instead of showing stray whitespace until the next reload).
+      var notes = steerNotesEl.value.trim();
+      steerSaveBtn.disabled = true;
+      steerStatusEl.textContent = "Saving…";
+      fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ week: state.week, notes: notes }),
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        })
+        .then(function (result) {
+          // Reflect the authoritative stored value (should equal the trimmed `notes` sent above)
+          // so the box visibly shows empty right away when a blank/whitespace-only note is saved.
+          steerNotesEl.value = (result && typeof result.notes === "string") ? result.notes : notes;
+          steerStatusEl.textContent = steerNotesEl.value
+            ? "Saved — steers next week’s search."
+            : "Saved — cleared. Next week ranks on your résumé & usual titles.";
+          steerSaveBtn.disabled = false;
+        })
+        .catch(function (err) {
+          steerStatusEl.textContent = "Save failed: " + err.message;
+          steerSaveBtn.disabled = false;
+        });
+    });
+  }
+
+  load();
+  loadSubmitted();
+})();
+</script>
