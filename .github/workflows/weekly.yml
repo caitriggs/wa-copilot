@@ -61,7 +61,8 @@ jobs:
           WA_COPILOT_JOOBLE: ${{ secrets.WA_COPILOT_JOOBLE }}
           WA_COPILOT_CAREERJET_AFFID: ${{ secrets.WA_COPILOT_CAREERJET_AFFID }}
           # --- dashboard Worker (publish) ---
-          WA_COPILOT_WORKER_URL: ${{ secrets.WA_COPILOT_WORKER_URL }}
+          # Worker URL is not sensitive — set it as a repo VARIABLE (preferred); secret still works.
+          WA_COPILOT_WORKER_URL: ${{ vars.WA_COPILOT_WORKER_URL || secrets.WA_COPILOT_WORKER_URL }}
           WA_COPILOT_PUBLISH_TOKEN: ${{ secrets.WA_COPILOT_PUBLISH_TOKEN }}
           WA_COPILOT_CF_ACCESS_CLIENT_ID: ${{ secrets.WA_COPILOT_CF_ACCESS_CLIENT_ID }}
           WA_COPILOT_CF_ACCESS_CLIENT_SECRET: ${{ secrets.WA_COPILOT_CF_ACCESS_CLIENT_SECRET }}
