@@ -102,6 +102,44 @@ def write_note(user: str, note: str, data_root: str | None = None) -> Path:
     return path
 
 
+def _extract_doc_text(filename: str, data_b64: str, max_chars: int = 6000) -> str:
+    """Decode an uploaded steering doc and pull its text. Prefers this repo's résumé parser
+    (handles PDF via pdfplumber + DOCX + text); falls back to stdlib DOCX/text if the copilot
+    package isn't importable (PDF then needs the package). Returns "" on failure. Capped so a big
+    document stays a reasonable steering signal."""
+    import base64
+    import tempfile
+    raw = base64.b64decode(data_b64)
+    suffix = (Path(filename).suffix or ".txt").lower()
+    tmp = Path(tempfile.mkstemp(suffix=suffix)[1])
+    tmp.write_bytes(raw)
+    try:
+        try:
+            repo_src = Path(__file__).resolve().parent.parent / "src"
+            if str(repo_src) not in sys.path:
+                sys.path.insert(0, str(repo_src))
+            from copilot.profile_import import _resume_text
+            text = _resume_text(tmp)
+        except Exception:  # noqa: BLE001 — copilot not importable; stdlib fallback
+            if suffix == ".docx":
+                import zipfile
+                import re
+                import html as _html
+                with zipfile.ZipFile(tmp) as z:
+                    xml = z.read("word/document.xml").decode("utf-8", "ignore")
+                xml = re.sub(r"</w:p>", "\n", xml)
+                xml = re.sub(r"<[^>]+>", "", xml)
+                text = _html.unescape(xml)
+            else:
+                text = raw.decode("utf-8", "replace")
+    finally:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+    return (text or "").strip()[:max_chars]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--user", required=True, help="copilot user id (matches <Desktop>/wa-unemployment-copilot/<user>)")
@@ -124,8 +162,29 @@ def main() -> int:
         print(f"[fetch_notes] failed to reach Worker: {e}", file=sys.stderr)
         return 2
 
+    # A steering DOC uploaded more recently than the typed note (or when no note was ever typed)
+    # wins — "latest source steers the week." Extract its text into weekly_notes.txt.
+    doc = data.get("doc")
+    note_ts = data.get("updated_at")
+    doc_ts = (doc or {}).get("uploaded_at")
+    if doc and doc_ts and (not note_ts or doc_ts > note_ts):
+        try:
+            text = _extract_doc_text(doc.get("filename", "upload"), doc.get("data_b64", ""))
+        except Exception as e:  # noqa: BLE001
+            print(f"[fetch_notes] could not read uploaded steer-doc ({type(e).__name__}: {e}); "
+                  "falling back to the typed note.", file=sys.stderr)
+            text = ""
+        if text:
+            name = doc.get("filename", "upload")
+            framed = (f"Steer this week's search toward roles that fit this uploaded document "
+                      f"({name}):\n\n{text}")
+            path = write_note(args.user, framed, args.data_root)
+            print(f"[fetch_notes] steering from uploaded file {name!r} -> {path} ({len(text)} chars)")
+            return 0
+        # extraction empty/failed -> fall through to the typed-note behavior below.
+
     # Never set on the dashboard -> don't clobber a config.yaml note with an empty override.
-    if not data.get("updated_at"):
+    if not note_ts:
         print("[fetch_notes] no dashboard note set yet — leaving weekly_notes.txt unchanged.")
         return 0
 

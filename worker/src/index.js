@@ -27,6 +27,10 @@
 //   weekly_notes       -> { notes, updated_at, week }   (the "steer next week's search" note the
 //                          user saves on the dashboard; RADMACHINE pulls it via GET /api/notes and
 //                          writes it to weekly_notes.txt before the next discover run)
+//   weekly_notes_doc   -> { filename, content_type, data_b64, uploaded_at, week }   (a document the
+//                          user uploads on the dashboard to steer the week; the Worker only stores
+//                          it — the weekly run's fetch_notes.py extracts its text. Newest of the
+//                          typed note vs. this upload wins.)
 
 import dashboardHtml from "../../web/dashboard.html";
 import { approvedJobDetails, buildSubmissionsCsv, buildCoworkPrompt } from "./artifacts.js";
@@ -67,22 +71,32 @@ async function readNotes(env) {
   return (rec && typeof rec.notes === "string") ? rec.notes : "";
 }
 
+// The uploaded steering DOC (weekly_notes_doc), returned WITHOUT its base64 payload — just enough
+// for the dashboard to show "steering from <file>". null when none uploaded.
+async function readSteerDocMeta(env) {
+  const d = await env.WA_COPILOT_KV.get("weekly_notes_doc", "json");
+  if (!d || !d.data_b64) return null;
+  return { filename: d.filename || "upload", uploaded_at: d.uploaded_at || null };
+}
+
 async function handleGetWeek(env) {
-  // The steering note is returned on every shape so the dashboard textarea can prefill it.
+  // The steering note + any uploaded steer-doc meta are returned on every shape so the dashboard
+  // can prefill the textarea and show which source is currently steering.
   const notes = await readNotes(env);
+  const steer_doc = await readSteerDocMeta(env);
   const currentWeek = await env.WA_COPILOT_KV.get("current_week");
   if (!currentWeek) {
-    return jsonResponse({ week: null, jobs: [], metrics: {}, notes });
+    return jsonResponse({ week: null, jobs: [], metrics: {}, notes, steer_doc });
   }
   const stored = await env.WA_COPILOT_KV.get(`week:${currentWeek}`, "json");
   if (!stored) {
-    return jsonResponse({ week: currentWeek, jobs: [], metrics: {}, notes });
+    return jsonResponse({ week: currentWeek, jobs: [], metrics: {}, notes, steer_doc });
   }
   const jobs = Array.isArray(stored.jobs) ? stored.jobs : [];
   const approvals = await env.WA_COPILOT_KV.get(`approvals:${currentWeek}`, "json");
   const approvedCount = (approvals && Array.isArray(approvals.approved)) ? approvals.approved.length : 0;
   const metrics = { ...(stored.metrics || {}), surfaced: jobs.length, approved: approvedCount };
-  return jsonResponse({ ...stored, jobs, metrics, notes });
+  return jsonResponse({ ...stored, jobs, metrics, notes, steer_doc });
 }
 
 // Normalize a raw notes submission: trim first so a whitespace-only box (spaces/newlines left
@@ -112,13 +126,43 @@ async function handlePostNotes(request, env) {
   return jsonResponse({ ok: true, notes });
 }
 
-// RADMACHINE-facing (bearer-gated, like GET /api/approvals): fetch_notes.py pulls the latest note.
+// Browser-facing (Access-gated): the dashboard uploads a document (résumé / a doc describing a
+// pivot) to steer next week. The Worker can't parse PDF/DOCX, so it just STORES the raw file
+// (base64) under weekly_notes_doc; the weekly run's fetch_notes.py — which has the Python
+// parsers — extracts its text into weekly_notes.txt. "Latest source wins": whichever of the typed
+// note vs. this doc is more recent steers the week (compared by timestamp in fetch_notes).
+const MAX_STEER_DOC_B64 = 3_000_000; // ~2.2MB decoded — plenty for a résumé/brief, safe for KV.
+async function handlePostNotesUpload(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ ok: false, error: "invalid JSON body" }, 400);
+  }
+  const data_b64 = (body && typeof body.data_b64 === "string") ? body.data_b64 : "";
+  if (!data_b64) {
+    return jsonResponse({ ok: false, error: "data_b64 (base64 file contents) is required" }, 400);
+  }
+  if (data_b64.length > MAX_STEER_DOC_B64) {
+    return jsonResponse({ ok: false, error: "file too large (max ~2MB)" }, 413);
+  }
+  const filename = (body && typeof body.filename === "string" && body.filename) ? body.filename.slice(0, 200) : "upload";
+  const content_type = (body && typeof body.content_type === "string") ? body.content_type.slice(0, 120) : "";
+  const week = (body && typeof body.week === "string") ? body.week : null;
+  const record = { filename, content_type, data_b64, uploaded_at: new Date().toISOString(), week };
+  await env.WA_COPILOT_KV.put("weekly_notes_doc", JSON.stringify(record));
+  return jsonResponse({ ok: true, filename });
+}
+
+// RADMACHINE/Actions-facing (bearer-gated): fetch_notes.py pulls the latest note AND any uploaded
+// steer-doc (full base64 payload) so it can extract the doc's text where the parsers live.
 async function handleGetNotes(request, env) {
   if (!isAuthorized(request, env)) {
     return jsonResponse({ ok: false, error: "unauthorized" }, 401);
   }
   const rec = await env.WA_COPILOT_KV.get("weekly_notes", "json");
-  return jsonResponse(rec || { notes: "", updated_at: null, week: null });
+  const doc = await env.WA_COPILOT_KV.get("weekly_notes_doc", "json");
+  return jsonResponse({ ...(rec || { notes: "", updated_at: null, week: null }), doc: doc || null });
 }
 
 async function handlePutWeek(request, env) {
@@ -300,6 +344,9 @@ export default {
     }
     if (method === "POST" && pathname === "/api/notes") {
       return handlePostNotes(request, env);
+    }
+    if (method === "POST" && pathname === "/api/notes/upload") {
+      return handlePostNotesUpload(request, env);
     }
     if (method === "GET" && pathname === "/api/notes") {
       return handleGetNotes(request, env);

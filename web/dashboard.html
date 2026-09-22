@@ -496,6 +496,12 @@
     <button id="steer-save" type="button">Save note</button>
     <span class="steer-status" id="steer-status"></span>
   </div>
+  <p class="steer-help" style="margin-top:14px;">&hellip;or upload a document (a r&eacute;sum&eacute; or a write-up of a pivot you want to explore) and next week&rsquo;s search is steered toward roles that fit it. Newest &mdash; note or upload &mdash; wins.</p>
+  <div class="steer-row">
+    <input type="file" id="steer-file" accept=".pdf,.docx,.txt,.md" style="flex:1;min-width:0;font-size:0.95rem;">
+    <button id="steer-upload" type="button">Upload doc</button>
+  </div>
+  <p class="steer-status" id="steer-doc-active" style="color:var(--muted);"></p>
 </div>
 
 <div class="rank-label" id="rank-label" hidden>Top matches</div>
@@ -626,6 +632,9 @@
   var steerNotesEl = document.getElementById("steer-notes");
   var steerSaveBtn = document.getElementById("steer-save");
   var steerStatusEl = document.getElementById("steer-status");
+  var steerFileEl = document.getElementById("steer-file");
+  var steerUploadBtn = document.getElementById("steer-upload");
+  var steerDocActiveEl = document.getElementById("steer-doc-active");
 
   function escapeHtml(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -862,6 +871,11 @@
         if (steerNotesEl && document.activeElement !== steerNotesEl) {
           steerNotesEl.value = data.notes || "";
         }
+        if (steerDocActiveEl) {
+          steerDocActiveEl.textContent = (data.steer_doc && data.steer_doc.filename)
+            ? "📎 A recently uploaded file (" + data.steer_doc.filename + ") may be steering next week — the newest of note vs. upload wins."
+            : "";
+        }
         renderMetrics(data.metrics);
         renderJobs();
       })
@@ -975,6 +989,41 @@
           steerStatusEl.textContent = "Save failed: " + err.message;
           steerSaveBtn.disabled = false;
         });
+    });
+  }
+
+  if (steerUploadBtn) {
+    steerUploadBtn.addEventListener("click", function () {
+      var file = steerFileEl && steerFileEl.files && steerFileEl.files[0];
+      if (!file) { steerStatusEl.textContent = "Pick a file first."; return; }
+      if (file.size > 2 * 1024 * 1024) { steerStatusEl.textContent = "File too large (max ~2MB)."; return; }
+      steerUploadBtn.disabled = true;
+      steerStatusEl.textContent = "Uploading " + file.name + "…";
+      var reader = new FileReader();
+      reader.onload = function () {
+        // readAsDataURL gives "data:<type>;base64,<payload>" — send just the base64 payload.
+        var b64 = String(reader.result || "").split(",")[1] || "";
+        fetch("/api/notes/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ week: state.week, filename: file.name, content_type: file.type, data_b64: b64 }),
+        })
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+          .then(function () {
+            steerStatusEl.textContent = "Uploaded " + file.name + " — it’ll steer next week’s search.";
+            if (steerDocActiveEl) steerDocActiveEl.textContent = "📎 Steering from your upload: " + file.name;
+            steerUploadBtn.disabled = false;
+          })
+          .catch(function (err) {
+            steerStatusEl.textContent = "Upload failed: " + err.message;
+            steerUploadBtn.disabled = false;
+          });
+      };
+      reader.onerror = function () {
+        steerStatusEl.textContent = "Couldn’t read the file.";
+        steerUploadBtn.disabled = false;
+      };
+      reader.readAsDataURL(file);
     });
   }
 

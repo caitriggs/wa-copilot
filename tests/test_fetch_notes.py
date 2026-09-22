@@ -102,3 +102,47 @@ def test_main_requires_worker_url(tmp_path, monkeypatch):
     monkeypatch.delenv("WA_COPILOT_WORKER_URL", raising=False)
     monkeypatch.setattr(sys, "argv", ["fetch_notes.py", "--user", "max", "--data-root", str(tmp_path)])
     assert fetch_notes.main() == 3
+
+
+def _docx_b64(text):
+    import io, zipfile, base64
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("word/document.xml",
+                   '<?xml version="1.0"?><w:document xmlns:w="x"><w:body>'
+                   '<w:p><w:r><w:t>' + text + '</w:t></w:r></w:p></w:body></w:document>')
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+import base64  # noqa: E402
+
+
+def test_extract_doc_text_docx_and_txt():
+    assert "PIVOT TO ROBOTICS" in fetch_notes._extract_doc_text("x.docx", _docx_b64("PIVOT TO ROBOTICS"))
+    assert fetch_notes._extract_doc_text("n.txt", base64.b64encode(b"go remote").decode()) == "go remote"
+
+
+def test_main_steers_from_uploaded_doc_when_newer(tmp_path, monkeypatch):
+    monkeypatch.setenv("WA_COPILOT_PUBLISH_TOKEN", "tok")
+    monkeypatch.setattr(sys, "argv",
+                        ["fetch_notes.py", "--user", "max", "--worker-url", "https://w", "--data-root", str(tmp_path)])
+    monkeypatch.setattr(fetch_notes, "fetch_notes", lambda url, token: {
+        "notes": "old typed note", "updated_at": "2026-08-01T00:00:00Z",
+        "doc": {"filename": "pivot.docx", "data_b64": _docx_b64("EXPLORE ROBOTICS PM"),
+                "uploaded_at": "2026-08-05T00:00:00Z"},
+    })
+    assert fetch_notes.main() == 0
+    txt = (tmp_path / "max" / "weekly_notes.txt").read_text(encoding="utf-8")
+    assert "EXPLORE ROBOTICS PM" in txt and "pivot.docx" in txt   # doc text + provenance framing
+
+
+def test_main_prefers_typed_note_when_newer_than_doc(tmp_path, monkeypatch):
+    monkeypatch.setenv("WA_COPILOT_PUBLISH_TOKEN", "tok")
+    monkeypatch.setattr(sys, "argv",
+                        ["fetch_notes.py", "--user", "max", "--worker-url", "https://w", "--data-root", str(tmp_path)])
+    monkeypatch.setattr(fetch_notes, "fetch_notes", lambda url, token: {
+        "notes": "newer typed note", "updated_at": "2026-08-10T00:00:00Z",
+        "doc": {"filename": "old.docx", "data_b64": _docx_b64("OLD DOC"), "uploaded_at": "2026-08-01T00:00:00Z"},
+    })
+    assert fetch_notes.main() == 0
+    assert (tmp_path / "max" / "weekly_notes.txt").read_text(encoding="utf-8") == "newer typed note"
