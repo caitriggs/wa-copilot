@@ -47,7 +47,8 @@ on:
 jobs:
   bootstrap-kv:
     name: Bootstrap WA_COPILOT_KV namespace (one-time, manual only)
-    if: github.event_name == 'workflow_dispatch' && inputs.bootstrap_kv == true
+    # Instances only — the public template never deploys the Worker.
+    if: github.repository != 'caitriggs/wa-copilot' && github.event_name == 'workflow_dispatch' && inputs.bootstrap_kv == true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -69,7 +70,7 @@ jobs:
 
   deploy:
     name: Deploy wa-copilot-dashboard worker
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bootstrap_kv != true)
+    if: github.repository != 'caitriggs/wa-copilot' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bootstrap_kv != true))
     runs-on: ubuntu-latest
     permissions:
       contents: read
