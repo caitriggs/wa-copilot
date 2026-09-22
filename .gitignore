@@ -12,6 +12,7 @@ secrets.env
 */packets/
 */log/
 */weekly_notes.txt
+**/profile/history*.json    # generated from résumés each run — never commit (would go stale)
 users/
 data/
 
