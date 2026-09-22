@@ -358,3 +358,18 @@ def test_title_filter_skipped_when_no_titles_configured():
     jp = JobPosting(source="usajobs", title="Physician (Staff Anesthesiologist)", employer="VA",
                     description="Provide anesthesia care.")
     assert discover.passes_filters(jp, cfg) is True
+
+
+def test_resume_text_reads_docx(tmp_path):
+    """A Word .docx résumé is parsed with the stdlib (no pdfplumber, no extra deps)."""
+    import zipfile
+    from copilot.profile_import import _resume_text
+    docx = tmp_path / "resume.docx"
+    body = ('<?xml version="1.0"?><w:document xmlns:w="x"><w:body>'
+            '<w:p><w:r><w:t>MAX SAMPLE</w:t></w:r></w:p>'
+            '<w:p><w:r><w:t>Product Manager</w:t></w:r></w:p>'
+            '</w:body></w:document>')
+    with zipfile.ZipFile(docx, "w") as z:
+        z.writestr("word/document.xml", body)
+    text = _resume_text(docx)
+    assert "MAX SAMPLE" in text and "Product Manager" in text

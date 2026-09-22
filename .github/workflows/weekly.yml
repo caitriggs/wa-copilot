@@ -71,6 +71,9 @@ jobs:
         run: |
           set -o pipefail
           echo "Running weekly pipeline for user '$COPILOT_USER' (dev_test=$DEV_TEST)"
+          # Pull the user's latest dashboard "steer next week" note -> <user>/weekly_notes.txt so
+          # discover honors it. Tolerant: a missing note / unreachable Worker never blocks the run.
+          python scripts/fetch_notes.py --user "$COPILOT_USER" || echo "[weekly] steering note skipped"
           python scripts/run_weekly.py --user "$COPILOT_USER" --steps discover,draft,apply,packet
           if [ "$DEV_TEST" = "true" ]; then
             python scripts/publish_week.py --user "$COPILOT_USER" --dev-test

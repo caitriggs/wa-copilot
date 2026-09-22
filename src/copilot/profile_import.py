@@ -11,7 +11,8 @@ Discovery ranking and draft generation are much better when they know your real 
 
 Dispatch on config `profile.linkedin_import`:
   - "export": parse a LinkedIn "Download your data" zip (Profile/Positions/Skills CSVs). Reliable.
-  - "resume": parse profile/resume.(pdf|txt|md). PDF needs the optional pdfplumber package.
+  - "resume": parse profile/resume.(pdf|docx|txt|md). PDF needs the optional pdfplumber package;
+#    .docx is read with the stdlib.
   - "authed": authenticated self-profile fetch (Phase 3, not implemented) — falls back to resume.
 
 Nothing here is submitted anywhere; it only reads your own files into a local JSON.
@@ -207,6 +208,18 @@ def _resume_text(path: Path) -> str:
                 return "\n".join((pg.extract_text() or "") for pg in pdf.pages)
         except Exception as e:  # noqa: BLE001
             print(f"  [profile_import] failed to read PDF: {type(e).__name__}: {e}")
+            return ""
+    if path.suffix.lower() == ".docx":
+        # Word .docx = a zip of XML; pull the paragraph text with the stdlib (no extra dependency).
+        try:
+            import zipfile as _zip, re as _re, html as _html
+            with _zip.ZipFile(path) as z:
+                xml = z.read("word/document.xml").decode("utf-8", "ignore")
+            xml = _re.sub(r"</w:p>", "\n", xml)      # paragraph breaks -> newlines
+            xml = _re.sub(r"<[^>]+>", "", xml)         # drop the tags
+            return _html.unescape(xml)
+        except Exception as e:  # noqa: BLE001
+            print(f"  [profile_import] failed to read .docx: {type(e).__name__}: {e}")
             return ""
     return path.read_text(encoding="utf-8", errors="replace")
 
