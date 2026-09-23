@@ -431,3 +431,9 @@ def test_role_scope_and_scope_rubric_reach_the_judge(monkeypatch):
     discover._llm_qualification_batch(cfg, "detail", "", [_ordinary_pm_posting()])
     assert "Leads defined-scope software projects." in seen["messages"][0]["content"]
     assert "SCOPE" in seen["system"] and "Office of the CEO/President" in seen["system"]
+
+
+def test_parse_json_list_tolerates_trailing_prose_and_fences():
+    raw = '```json\n[{"id": "a", "verdict": "stretch"}]\n```\n\nNote: posting b was ambiguous.'
+    assert discover._parse_json_list(raw) == [{"id": "a", "verdict": "stretch"}]
+    assert discover._parse_json_list('Here you go: [{"id": "x"}] trailing') == [{"id": "x"}]

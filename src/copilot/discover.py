@@ -391,6 +391,18 @@ _QUALIFICATION_SYSTEM = (
 )
 
 
+def _parse_json_list(text: str):
+    """Parse the judge's JSON list, tolerating code fences and any prose the model adds before or
+    after it (seen in production as `JSONDecodeError: Extra data`, which used to fail the whole
+    batch open and let its postings through unjudged). Decodes the first JSON array found."""
+    text = re.sub(r"^```(?:json)?|```$", "", text or "", flags=re.MULTILINE).strip()
+    start = text.find("[")
+    if start < 0:
+        return json.loads(text)          # no array at all — raise the usual decode error
+    data, _end = json.JSONDecoder().raw_decode(text, start)
+    return data
+
+
 def _llm_qualification_batch(cfg: Config, resume_detail: str, notes: str,
                               postings: list[JobPosting]) -> dict | None:
     """Ask Haiku to score each posting in this batch against the qualification rubric.
@@ -424,12 +436,11 @@ def _llm_qualification_batch(cfg: Config, resume_detail: str, notes: str,
     )
     try:
         client = llm._make_client(anthropic, api_key)
-        kwargs = dict(model=_QUALIFICATION_MODEL, max_tokens=1800, system=_QUALIFICATION_SYSTEM,
+        kwargs = dict(model=_QUALIFICATION_MODEL, max_tokens=2500, system=_QUALIFICATION_SYSTEM,
                       messages=[{"role": "user", "content": user}], timeout=60)
         resp = client.messages.create(**kwargs)
         text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
-        text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
-        data = json.loads(text)
+        data = _parse_json_list(text)
     except Exception as e:  # noqa: BLE001 — never let the qualification judge block discovery
         print(f"  [discover] LLM qualification judge failed for a batch of {len(postings)} "
               f"({type(e).__name__}: {str(e)[:200]}); keeping them (cheap pre-filter already applied).")
