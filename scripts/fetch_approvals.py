@@ -287,6 +287,14 @@ def send_apply_email(user: str, week: str, email_jobs: list[dict], csv_path: Pat
         print(f"[fetch_approvals] apply email FAILED: {e}")
 
 
+def _normalize_worker_url(url):
+    """Accept a Worker URL saved without a scheme (e.g. 'x.workers.dev') by assuming https://."""
+    url = (url or "").strip()
+    if url and not url.lower().startswith(("http://", "https://")):
+        url = "https://" + url
+    return url
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--user", required=True, help="copilot user id (matches <Desktop>/wa-unemployment-copilot/<user>)")
@@ -297,6 +305,7 @@ def main() -> int:
     ap.add_argument("--no-email", action="store_true",
                     help="only append the CSV; don't email the approved jobs + CoWork prompt")
     args = ap.parse_args()
+    args.worker_url = _normalize_worker_url(args.worker_url)
 
     if not args.worker_url:
         print("[fetch_approvals] --worker-url or env WA_COPILOT_WORKER_URL is required", file=sys.stderr)

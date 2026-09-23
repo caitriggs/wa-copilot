@@ -534,6 +534,14 @@ def publish(worker_url: str, payload: dict, token: str) -> None:
         print(f"  [publish] {resp.status} {body}")
 
 
+def _normalize_worker_url(url):
+    """Accept a Worker URL saved without a scheme (e.g. 'x.workers.dev') by assuming https://."""
+    url = (url or "").strip()
+    if url and not url.lower().startswith(("http://", "https://")):
+        url = "https://" + url
+    return url
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--user", required=True, help="copilot user id (matches <Desktop>/wa-unemployment-copilot/<user>)")
@@ -550,6 +558,7 @@ def main() -> int:
                     help="dev-test review-email recipient (overrides config email.dev_to / "
                          "env WA_COPILOT_EMAIL_DEV_TO)")
     args = ap.parse_args()
+    args.worker_url = _normalize_worker_url(args.worker_url)
 
     week = args.week or week_ending().isoformat()
 

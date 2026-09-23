@@ -140,6 +140,14 @@ def _extract_doc_text(filename: str, data_b64: str, max_chars: int = 6000) -> st
     return (text or "").strip()[:max_chars]
 
 
+def _normalize_worker_url(url):
+    """Accept a Worker URL saved without a scheme (e.g. 'x.workers.dev') by assuming https://."""
+    url = (url or "").strip()
+    if url and not url.lower().startswith(("http://", "https://")):
+        url = "https://" + url
+    return url
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--user", required=True, help="copilot user id (matches <Desktop>/wa-unemployment-copilot/<user>)")
@@ -147,6 +155,7 @@ def main() -> int:
                     help="dashboard Worker base URL (default: env WA_COPILOT_WORKER_URL)")
     ap.add_argument("--data-root", default=None, help="override data root (default: <Desktop>/wa-unemployment-copilot)")
     args = ap.parse_args()
+    args.worker_url = _normalize_worker_url(args.worker_url)
 
     if not args.worker_url:
         print("[fetch_notes] --worker-url or env WA_COPILOT_WORKER_URL is required", file=sys.stderr)

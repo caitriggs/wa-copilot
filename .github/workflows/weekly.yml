@@ -48,10 +48,10 @@ jobs:
           COPILOT_USER: ${{ vars.COPILOT_USER || 'max' }}
           DEV_TEST: ${{ inputs.dev_test }}
           # --- email (Gmail SMTP) ---
-          WA_COPILOT_EMAIL_ENABLED: ${{ secrets.WA_COPILOT_EMAIL_ENABLED }}
-          WA_COPILOT_EMAIL_TO: ${{ secrets.WA_COPILOT_EMAIL_TO }}
-          WA_COPILOT_EMAIL_FROM: ${{ secrets.WA_COPILOT_EMAIL_FROM }}
-          WA_COPILOT_EMAIL_DEV_TO: ${{ secrets.WA_COPILOT_EMAIL_DEV_TO }}
+          WA_COPILOT_EMAIL_ENABLED: ${{ vars.WA_COPILOT_EMAIL_ENABLED || secrets.WA_COPILOT_EMAIL_ENABLED }}
+          WA_COPILOT_EMAIL_TO: ${{ vars.WA_COPILOT_EMAIL_TO || secrets.WA_COPILOT_EMAIL_TO }}
+          WA_COPILOT_EMAIL_FROM: ${{ vars.WA_COPILOT_EMAIL_FROM || secrets.WA_COPILOT_EMAIL_FROM }}
+          WA_COPILOT_EMAIL_DEV_TO: ${{ vars.WA_COPILOT_EMAIL_DEV_TO || secrets.WA_COPILOT_EMAIL_DEV_TO }}
           WA_COPILOT_GMAIL_APP_PASSWORD: ${{ secrets.WA_COPILOT_GMAIL_APP_PASSWORD }}
           # --- job sources ---
           WA_COPILOT_USAJOBS: ${{ secrets.WA_COPILOT_USAJOBS }}

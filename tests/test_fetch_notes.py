@@ -146,3 +146,9 @@ def test_main_prefers_typed_note_when_newer_than_doc(tmp_path, monkeypatch):
     })
     assert fetch_notes.main() == 0
     assert (tmp_path / "max" / "weekly_notes.txt").read_text(encoding="utf-8") == "newer typed note"
+
+
+def test_worker_url_without_scheme_gets_https():
+    assert fetch_notes._normalize_worker_url("x.workers.dev") == "https://x.workers.dev"
+    assert fetch_notes._normalize_worker_url("https://x.workers.dev") == "https://x.workers.dev"
+    assert fetch_notes._normalize_worker_url("") == ""
