@@ -152,3 +152,11 @@ def test_worker_url_without_scheme_gets_https():
     assert fetch_notes._normalize_worker_url("x.workers.dev") == "https://x.workers.dev"
     assert fetch_notes._normalize_worker_url("https://x.workers.dev") == "https://x.workers.dev"
     assert fetch_notes._normalize_worker_url("") == ""
+
+
+def test_user_root_honors_wa_ui_data_root(monkeypatch, tmp_path):
+    """On CI the data root is the checkout via WA_UI_DATA_ROOT — the scripts' own path helper must
+    honor it (not fall back to ~/Desktop), matching copilot/paths.py."""
+    monkeypatch.setenv("WA_UI_DATA_ROOT", str(tmp_path))
+    assert fetch_notes.user_root("max") == tmp_path / "max"
+    assert fetch_notes.user_root("max", data_root="/explicit") == Path("/explicit") / "max"

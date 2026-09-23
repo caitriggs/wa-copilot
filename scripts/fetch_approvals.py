@@ -86,7 +86,10 @@ def desktop_dir() -> Path:
 
 
 def user_root(user: str, data_root: str | None = None) -> Path:
-    base = Path(data_root) if data_root else desktop_dir() / APP_DIRNAME
+    # Same precedence as copilot/paths.py: explicit --data-root, else WA_UI_DATA_ROOT (CI/instance
+    # checkout), else <Desktop>/wa-unemployment-copilot.
+    root = data_root or os.environ.get("WA_UI_DATA_ROOT")
+    base = Path(root) if root else desktop_dir() / APP_DIRNAME
     return base / user
 
 
