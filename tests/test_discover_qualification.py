@@ -410,3 +410,24 @@ def test_discover_merged_judge_drops_specialized_mismatch(monkeypatch, data_root
 
     results = discover.discover(cfg, data_root=data_root, write_cache=False)
     assert results == []   # the specialized-experience mismatch is dropped, not just re-badged
+
+
+def test_role_scope_and_scope_rubric_reach_the_judge(monkeypatch):
+    cfg = config.Config("u", {"search": {"titles": ["Program Manager"],
+                                         "role_scope": "Leads defined-scope software projects."},
+                              "ranking": {}})
+    monkeypatch.setattr(cfg, "get_secret", lambda ref: "sk-fake")
+    seen = {}
+
+    class _Capture(_FakeMessages):
+        def create(self, **kwargs):
+            seen.update(kwargs)
+            return _FakeResponse("[]")
+
+    client = _FakeClient()
+    client.messages = _Capture()
+    from copilot import llm
+    monkeypatch.setattr(llm, "_make_client", lambda anthropic_mod, api_key: client)
+    discover._llm_qualification_batch(cfg, "detail", "", [_ordinary_pm_posting()])
+    assert "Leads defined-scope software projects." in seen["messages"][0]["content"]
+    assert "SCOPE" in seen["system"] and "Office of the CEO/President" in seen["system"]

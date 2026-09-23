@@ -172,6 +172,16 @@ def test_to_override_wins_over_config(monkeypatch):
     assert sent["From"] == "sender@gmail.com"     # From unchanged
 
 
+def test_smtp_message_id_is_set_when_given(monkeypatch):
+    monkeypatch.setattr(config_mod, "keyring", None)
+    monkeypatch.setenv("WA_COPILOT_GMAIL_APP_PASSWORD", "app-pw")
+    import copilot.mailer as mailer
+    monkeypatch.setattr(mailer.smtplib, "SMTP", _FakeSMTP)
+    send(_cfg({"email": {"to": "a@example.com", "from": "sender@gmail.com"}}), "Subj", "body",
+         message_id="<abc123@gmail.com>")
+    assert _FakeSMTP.last.sent["Message-ID"] == "<abc123@gmail.com>"
+
+
 def test_smtp_missing_password_raises(monkeypatch):
     monkeypatch.setattr(config_mod, "keyring", None)
     monkeypatch.setenv("WA_COPILOT_EMAIL_TO", "demo@gmail.com")

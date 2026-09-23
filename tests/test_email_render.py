@@ -163,3 +163,23 @@ def test_plaintext_lists_jobs_and_link():
     assert "https://ex.com/a" in txt
     assert "Review & approve: https://dash.example/" in txt
     assert "<td" not in txt and "<div" not in txt  # no HTML markup in the text part
+
+
+def test_bug_button_drafts_in_thread_reply():
+    subj = "Your weekly job matches are ready to review — week ending 2026-08-01"
+    html = render_weekly_review(week="2026-08-01", surfaced=2, jobs=JOBS,
+                                review_url="https://dash.example/", reply_to="ops@gmail.com",
+                                subject=subj, message_id="<abc123@gmail.com>")
+    assert "subject=Re%3A%20Your%20weekly%20job%20matches" in html
+    assert "In-Reply-To=%3Cabc123%40gmail.com%3E" in html
+    assert "References=%3Cabc123%40gmail.com%3E" in html
+
+
+def test_steer_line_shown_only_when_steered():
+    html = render_weekly_review(week="w", surfaced=2, jobs=JOBS, review_url="#",
+                                focus="games live-service producer roles")
+    assert "Steered this week by:" in html and "games live-service producer roles" in html
+    assert "Steered this week by:" not in render_weekly_review(week="w", surfaced=2, jobs=JOBS,
+                                                               review_url="#")
+    txt = weekly_review_plaintext(week="w", surfaced=2, jobs=JOBS, review_url="#", focus="x")
+    assert "Steered this week by: x" in txt

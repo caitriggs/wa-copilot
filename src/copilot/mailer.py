@@ -119,7 +119,8 @@ def _gmail_login_user(address: str, host: str) -> str:
 
 
 def send(cfg: Config, subject: str, md_body: str, html_body: str | None = None,
-         attachments: list[dict] | None = None, to: str | None = None) -> None:
+         attachments: list[dict] | None = None, to: str | None = None,
+         message_id: str | None = None) -> None:
     """Send an email to the user over Gmail SMTP. Raises MailError on misconfig/auth/send failure
     (including the blocked-port timeout you'll see if 587 isn't open outbound).
 
@@ -133,6 +134,9 @@ def send(cfg: Config, subject: str, md_body: str, html_body: str | None = None,
     `to` overrides the recipient (config `email.to`) for this one message — used by the dev-test
     review send to redirect the email to the operator instead of the prod user, without touching
     config. The From/login/credentials are unchanged.
+
+    `message_id` sets the Message-ID header (e.g. one from `email.utils.make_msgid`) so content in
+    the body — the review email's "Report a bug" mailto — can reference this exact message.
     """
     to = to or cfg.email_to
     if not to:
@@ -155,6 +159,8 @@ def send(cfg: Config, subject: str, md_body: str, html_body: str | None = None,
     msg["Subject"] = subject
     msg["From"] = sender
     msg["To"] = to
+    if message_id:
+        msg["Message-ID"] = message_id
     msg.set_content(md_body)
     msg.add_alternative(html_body if html_body is not None else _wrap(md_to_html(md_body)),
                         subtype="html")

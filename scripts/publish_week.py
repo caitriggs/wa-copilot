@@ -255,6 +255,9 @@ def load_metrics(user_dir: Path, week: str, jobs: list[dict]) -> dict:
 
     return {
         "surfaced": surfaced,
+        # The week's steer (dashboard note / uploaded doc, summarized by focus.py), shown in the
+        # review email so the user can see their steering actually took effect. "" when unsteered.
+        "focus": str(cache.get("focus", "") or ""),
         # "approved" isn't known until the dashboard/RADMACHINE round-trip completes — the
         # Worker's own /api/approve + /api/approvals track that; publish just seeds it at 0.
         "approved": 0,
@@ -495,6 +498,7 @@ def send_review_ready_email(user: str, week: str, worker_url: str, payload: dict
 
     jobs = payload.get("jobs", []) or []
     surfaced = (payload.get("metrics", {}) or {}).get("surfaced") or len(jobs)
+    focus = (payload.get("metrics", {}) or {}).get("focus") or ""
     review_url = worker_url.rstrip("/") + "/"
     if dev:
         review_url += "?dev=1"   # dashboard shows a DEV banner and marks Submit as non-recording
@@ -508,11 +512,17 @@ def send_review_ready_email(user: str, week: str, worker_url: str, payload: dict
         reply_to = cfg.email_from or cfg.get_secret("smtp_user") or ""
     except Exception:  # noqa: BLE001
         reply_to = cfg.email_from or ""
+    # Our own Message-ID, so the bug button's mailto can point In-Reply-To at this exact email.
+    from email.utils import make_msgid
+    domain = reply_to.rsplit("@", 1)[-1] if "@" in reply_to else None
+    message_id = make_msgid(domain=domain)
     html = render_weekly_review(week=week, surfaced=surfaced, jobs=view_models,
-                                review_url=review_url, reply_to=reply_to)
-    text = weekly_review_plaintext(week=week, surfaced=surfaced, jobs=view_models, review_url=review_url)
+                                review_url=review_url, reply_to=reply_to,
+                                subject=subject, message_id=message_id, focus=focus)
+    text = weekly_review_plaintext(week=week, surfaced=surfaced, jobs=view_models,
+                                   review_url=review_url, focus=focus)
     try:
-        send(cfg, subject, text, html_body=html, to=recipient)
+        send(cfg, subject, text, html_body=html, to=recipient, message_id=message_id)
         print(f"  [publish] {'DEV ' if dev else ''}review-ready email sent to {recipient or cfg.email_to}")
     except MailError as e:
         print(f"  [publish] review-ready email FAILED: {e}")

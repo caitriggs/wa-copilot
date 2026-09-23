@@ -137,23 +137,40 @@ def _card(job: dict) -> str:
     )
 
 
-def _bug_mailto(reply_to: str, week: str) -> str:
+def _bug_mailto(reply_to: str, week: str, subject: str | None = None,
+                message_id: str | None = None) -> str:
     """A `mailto:` that opens a reply to this email's sender, prefilled for a bug report — the
-    "Report a bug" button. Reaches the operator's inbox the same way a plain Reply would."""
-    subject = f"Bug report — Job Search Copilot (week ending {week})"
-    body = "What went wrong? (Attach a screenshot if you can.)\n\n"
-    return f"mailto:{reply_to}?subject={quote(subject)}&body={quote(body)}"
+    "Report a bug" button. Reaches the operator's inbox the same way a plain Reply would.
+
+    A mailto link can't literally trigger the mail client's Reply, so this gets as close as the
+    spec allows: when the email's own `subject` is known the draft is "Re: <that subject>", and
+    when its `message_id` is known the link carries In-Reply-To/References (RFC 6068 lets a mailto
+    set any header) — clients that honor those (Apple Mail, Outlook, Thunderbird) file the report
+    in the same thread; the rest still thread on the matching "Re:" subject where they can."""
+    if subject:
+        subj = subject if subject.lower().startswith("re:") else f"Re: {subject}"
+    else:
+        subj = f"Bug report — Job Search Copilot (week ending {week})"
+    body = "Bug report — what went wrong? (Attach a screenshot if you can.)\n\n"
+    url = f"mailto:{reply_to}?subject={quote(subj)}"
+    if message_id:
+        url += f"&In-Reply-To={quote(message_id)}&References={quote(message_id)}"
+    return url + f"&body={quote(body)}"
 
 
 def render_weekly_review(*, week: str, surfaced: int, jobs: list[dict], review_url: str,
                          shown: int | None = None, footer_address: str | None = None,
-                         reply_to: str | None = None) -> str:
+                         reply_to: str | None = None, subject: str | None = None,
+                         message_id: str | None = None, focus: str = "") -> str:
     """Full HTML document for the weekly-review email.
 
     jobs: already-ranked view models (see `_card`). `shown` defaults to len(jobs); `surfaced` is the
     total that cleared filters (may exceed shown). `review_url` is the dashboard link. `reply_to`,
     when set, is the sender address the "Report a bug" button opens a reply to (defaults to just
-    telling the reader to reply to the email).
+    telling the reader to reply to the email). `subject` / `message_id` are this email's own
+    Subject and Message-ID, so the bug button drafts an in-thread reply (see `_bug_mailto`).
+    `focus` is the week's steering summary (dashboard note or uploaded doc); when set, a
+    "Steered by" line confirms the steer took effect.
     """
     shown = len(jobs) if shown is None else shown
     footer = footer_address or _DEFAULT_FOOTER
@@ -173,7 +190,7 @@ def render_weekly_review(*, week: str, surfaced: int, jobs: list[dict], review_u
             f'<tr><td bgcolor="{PAGE_BG}" style="{grid}padding:2px 40px 6px 40px;">'
             f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
             f'<tr><td bgcolor="{CARD_BG}" align="center" style="background:{CARD_BG};border:1px solid {CARD_BORDER};">'
-            f'<a href="{_esc(_bug_mailto(reply_to, week))}" style="display:block;padding:12px 24px;'
+            f'<a href="{_esc(_bug_mailto(reply_to, week, subject, message_id))}" style="display:block;padding:12px 24px;'
             f'font-family:{MONO};font-size:12px;font-weight:700;letter-spacing:2px;'
             f'text-transform:uppercase;color:{ACCENT};text-decoration:none;">🐛 Report a bug</a>'
             f'</td></tr></table></td></tr>'
@@ -186,6 +203,14 @@ def render_weekly_review(*, week: str, surfaced: int, jobs: list[dict], review_u
                  f"The top {shown} are highlighted below — the rest are waiting in your queue.")
     else:
         intro = f"{surfaced} role{plural} cleared your filters this week, highlighted below."
+
+    steer_row = ""
+    if focus:
+        steer_row = (
+            f'<tr><td bgcolor="{PAGE_BG}" style="{grid}padding:6px 40px 4px 40px;font-family:{SANS};'
+            f'font-size:13px;color:{MUTED};line-height:1.5;">'
+            f'<b style="color:{INK};">Steered this week by:</b> {_esc(focus)}</td></tr>'
+        )
 
     cards = "".join(_card(j) for j in jobs) or (
         f'<tr><td style="font-family:{SANS};font-size:14px;color:{MUTED};padding:0 0 14px 0;">'
@@ -223,7 +248,7 @@ def render_weekly_review(*, week: str, surfaced: int, jobs: list[dict], review_u
   </tr>
   </table>
 </td></tr>
-
+{steer_row}
 <!-- cards -->
 <tr><td bgcolor="{PAGE_BG}" style="{grid}padding:22px 40px 4px 40px;">
   <div style="padding:0 0 14px 0;">{top_label}</div>
@@ -256,11 +281,14 @@ def render_weekly_review(*, week: str, surfaced: int, jobs: list[dict], review_u
 """
 
 
-def weekly_review_plaintext(*, week: str, surfaced: int, jobs: list[dict], review_url: str) -> str:
+def weekly_review_plaintext(*, week: str, surfaced: int, jobs: list[dict], review_url: str,
+                            focus: str = "") -> str:
     """text/plain alternative — the same information without markup."""
     lines = [f"Job Search Copilot — Weekly Review (week ending {week})", ""]
     plural = "s" if surfaced != 1 else ""
     lines.append(f"{surfaced} role{plural} cleared your filters this week.")
+    if focus:
+        lines.append(f"Steered this week by: {focus}")
     lines.append("")
     for i, j in enumerate(jobs, 1):
         head = j.get("title", "Untitled role")

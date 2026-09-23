@@ -50,6 +50,12 @@ search:
     - "Remote"
   keywords_include: ["operations", "logistics"]
   keywords_exclude: ["commission-only", "unpaid"]
+  # Seniority/scope guard: postings whose TITLE contains any of these (whole word/phrase,
+  # case-insensitive) are hard-dropped before ranking. Keeps executive / over-scoped roles out.
+  titles_exclude: ["Director", "Vice President", "VP", "Head of", "Chief"]
+  # One or two sentences on the level + kind of work you do and want. The LLM qualification judge
+  # treats it as authoritative and drops roles materially above (or outside) this scope.
+  role_scope: ""
   comp_min: 90000                       # total-comp floor (annual, USD). Leave null to disable.
   weekly_notes: ""                      # EDIT WEEKLY. This is an OVERRIDE, not a nudge: when set, it
                                         # STEERS the whole week's search + ranking away from the

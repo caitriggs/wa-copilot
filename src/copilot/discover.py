@@ -289,13 +289,29 @@ def _cheap_pre_filter(postings: list[JobPosting], cfg: Config, histories: list[d
     return survivors, len(postings) - len(survivors)
 
 
+def _title_excluded(title: str, cfg: Config) -> bool:
+    """True if the posting TITLE contains any `search.titles_exclude` term — a whole-word/phrase,
+    case-insensitive match on the title only (never the description, where "reports to the
+    Director" is harmless). The seniority/scope guard: e.g. ["Director", "VP", "Head of",
+    "Senior Staff"] keeps executive / over-scoped roles out regardless of how well the rest of the
+    text matches."""
+    terms = [t.strip() for t in (cfg.get("search.titles_exclude", []) or []) if str(t).strip()]
+    if not terms:
+        return False
+    return any(re.search(rf"(?<![A-Za-z0-9]){re.escape(t)}(?![A-Za-z0-9])", title or "", re.I)
+               for t in terms)
+
+
 def passes_hard_filters(jp: JobPosting, cfg: Config) -> bool:
-    """Absolute excludes: configured keyword excludes and a comp floor blown by more than 20%.
-    Unlike the cheap location/relevance pre-filter (`_cheap_pre_filter`), these are intentional
-    hard drops — never relaxed by a never-zero-out fallback."""
+    """Absolute excludes: configured keyword excludes, title excludes (seniority/scope guard), and
+    a comp floor blown by more than 20%. Unlike the cheap location/relevance pre-filter
+    (`_cheap_pre_filter`), these are intentional hard drops — never relaxed by a never-zero-out
+    fallback."""
     exclude = [k.lower() for k in (cfg.get("search.keywords_exclude", []) or [])]
     hay = f"{jp.title} {jp.employer} {jp.description}".lower()
     if any(k in hay for k in exclude):
+        return False
+    if _title_excluded(jp.title, cfg):
         return False
     comp_min = cfg.get("search.comp_min")
     val = jp.comp_min if jp.comp_min is not None else jp.comp_max
@@ -350,7 +366,14 @@ _QUALIFICATION_SYSTEM = (
     "If the posting states a specific domain/population/subject-matter requirement the résumé "
     "gives no evidence of, treat that as a strong disqualifier even when the job title matches "
     "perfectly.\n"
-    "3) Seniority/years/grade-level fit — does the candidate's experience level roughly match?\n"
+    "3) Seniority AND SCOPE fit — does the role's level and span of responsibility match what the "
+    "candidate has actually done? Judge scope, not just years: a role that is materially ABOVE the "
+    "candidate's demonstrated scope — executive/director/VP/head-of/chief-of-staff level, "
+    "\"Office of the CEO/President\"-style roles, org-wide or company-wide operations/strategy "
+    "ownership, managing managers or large multi-team orgs, P&L ownership — is \"not-qualified\" "
+    "when the résumé shows leadership of defined-scope projects/teams rather than that level. "
+    "If a candidate scope statement is given, treat it as authoritative about the level and kind "
+    "of work they do and want.\n"
     "4) Hard qualifications — a degree, professional license, clearance, or citizenship status the "
     "candidate clearly lacks per their résumé (e.g. a PE license, MD, JD, an active security "
     "clearance, a named engineering/medical/legal degree).\n"
@@ -391,8 +414,10 @@ def _llm_qualification_batch(cfg: Config, resume_detail: str, notes: str,
          "posting_text": (jp.description or "")[:3000]}
         for short_id, jp in by_id.items()
     ]
+    scope = str(cfg.get("search.role_scope", "") or "").strip()
     user = (
         f"# Candidate résumés (full detail)\n{resume_detail}\n\n"
+        f"# Candidate scope statement (level + kind of work they do and want)\n{scope or '(none)'}\n\n"
         f"# This week's focus note (if any)\n{notes or '(none)'}\n\n"
         "# Postings to evaluate (title + full posting text, including qualifications/specialized "
         f"experience where the source provided it)\n{json.dumps(listing)}\n"

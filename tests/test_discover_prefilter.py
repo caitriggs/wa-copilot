@@ -110,3 +110,30 @@ def test_cheap_pre_filter_empty_input_short_circuits():
     cfg = _cfg()
     kept, dropped = discover._cheap_pre_filter([], cfg, [], None)
     assert kept == [] and dropped == 0
+
+
+# --------------------------------------------------------------------------- titles_exclude
+
+
+def _cfg_excl(terms):
+    return config.Config("u", {"search": {"titles": ["Program Manager"], "locations": [],
+                                          "titles_exclude": terms}, "ranking": {}})
+
+
+def test_titles_exclude_drops_over_scoped_titles():
+    cfg = _cfg_excl(["Senior Staff", "Director", "VP", "Office of the President"])
+    for t in ("Senior Staff Operations Manager, Office of the President (PED)",
+              "Director of Program Management", "VP, Product"):
+        assert not discover.passes_hard_filters(_posting(title=t), cfg), t
+
+
+def test_titles_exclude_is_whole_word_and_title_only():
+    cfg = _cfg_excl(["VP", "Director"])
+    # "VP" must not match inside another word; description mentions are harmless.
+    assert discover.passes_hard_filters(_posting(title="MVP Program Manager"), cfg)
+    assert discover.passes_hard_filters(
+        _posting(title="Technical Program Manager", description="Reports to the Director of Eng."), cfg)
+
+
+def test_titles_exclude_empty_by_default():
+    assert discover.passes_hard_filters(_posting(title="Director of Programs"), _cfg())

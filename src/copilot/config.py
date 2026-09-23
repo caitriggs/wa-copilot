@@ -72,6 +72,7 @@ DEFAULTS: dict[str, Any] = {
                 "data_export_path": "profile/linkedin-export.zip"},
     "search": {
         "titles": [], "locations": [], "keywords_include": [], "keywords_exclude": [],
+        "titles_exclude": [], "role_scope": "",
         "comp_min": None,
         "weekly_notes": "",
         # weekly_notes acts as an OVERRIDE for the week's search/ranking (see focus.py).

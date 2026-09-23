@@ -251,8 +251,8 @@ def _stub_notify_deps(publish_week, captured, monkeypatch):
     class _MailError(Exception):
         pass
 
-    def _send(cfg, subject, text, html_body=None, attachments=None, to=None):
-        captured.update(subject=subject, text=text, html=html_body, to=to)
+    def _send(cfg, subject, text, html_body=None, attachments=None, to=None, message_id=None):
+        captured.update(subject=subject, text=text, html=html_body, to=to, message_id=message_id)
 
     def _deps():
         return ((lambda user, data_root=None: _FakeCfg()), _send, _MailError,
@@ -286,6 +286,18 @@ def test_review_email_prod_uses_config_recipient(monkeypatch):
     assert not captured["subject"].startswith("[DEV]")
     assert "?dev=1" not in captured["html"]
     assert "https://dash.example/" in captured["html"]
+
+
+def test_review_email_bug_button_threads_on_the_sent_message(monkeypatch):
+    from urllib.parse import quote
+    captured = {}
+    _stub_notify_deps(publish_week, captured, monkeypatch)
+    publish_week.send_review_ready_email("max", "2026-08-22", "https://dash.example",
+                                         _REVIEW_PAYLOAD)
+    mid = captured["message_id"]
+    assert mid and mid.startswith("<") and mid.endswith(">")
+    assert "In-Reply-To=" + quote(mid) in captured["html"]      # bug button points at THIS email
+    assert "subject=" + quote("Re: " + captured["subject"]) in captured["html"]
 
 
 def test_review_email_dev_without_recipient_is_skipped(monkeypatch):
