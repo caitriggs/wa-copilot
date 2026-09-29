@@ -705,6 +705,37 @@ def explain_best(jp: JobPosting, cfg: Config, histories: list[dict], focus=None)
     return best
 
 
+def _int_setting(cfg: Config, key: str, default: int) -> int:
+    try:
+        return int(cfg.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _drop_dead_links(cfg: Config, ranked: list[JobPosting]) -> list[JobPosting]:
+    """Check the links of the top `discover.verify_top` ranked postings (default 60, concurrently)
+    and drop the ones whose page says the job is gone — see linkcheck.py. Postings below the
+    cutoff, and any whose check was inconclusive, are kept. `discover.verify_links: false`
+    disables it."""
+    if not ranked or cfg.get("discover.verify_links", True) is False:
+        return ranked
+    from . import linkcheck
+    top = ranked[:max(0, _int_setting(cfg, "discover.verify_top", 60))]
+    if not top:
+        return ranked
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(12, len(top))) as pool:
+        statuses = list(pool.map(lambda jp: linkcheck.check_url(jp.url), top))
+    dead = {jp.dedup_key for jp, st in zip(top, statuses) if st == "dead"}
+    for jp, st in zip(top, statuses):
+        if st == "dead":
+            print(f"  [discover] dead link dropped: {jp.title!r} @ {jp.employer!r} ({jp.source})")
+    counts = {k: statuses.count(k) for k in ("alive", "dead", "unknown")}
+    print(f"  [discover] link check (top {len(top)}): {counts['alive']} live, {counts['dead']} dead "
+          f"(dropped), {counts['unknown']} unverifiable (kept).")
+    return [jp for jp in ranked if jp.dedup_key not in dead]
+
+
 def discover(cfg: Config, week_end: date | None = None, data_root=None,
              write_cache: bool = True) -> list[JobPosting]:
     """Return postings ranked best-first. Per-source failures are isolated."""
@@ -729,7 +760,14 @@ def discover(cfg: Config, week_end: date | None = None, data_root=None,
                   f"{type(e).__name__}: {e}")
 
     screened = len(collected)
-    hard_filtered = [jp for jp in collected.values() if passes_hard_filters(jp, eff)]
+    # Stale listings (aggregators keep returning closed jobs) never reach the LLM stages.
+    from . import linkcheck
+    max_age = _int_setting(cfg, "discover.max_age_days", linkcheck.DEFAULT_MAX_AGE_DAYS)
+    fresh = [jp for jp in collected.values() if linkcheck.is_fresh(jp.posted_date, max_age)]
+    if len(fresh) != len(collected):
+        print(f"  [discover] freshness: dropped {len(collected) - len(fresh)} posting(s) older "
+              f"than {max_age} days.")
+    hard_filtered = [jp for jp in fresh if passes_hard_filters(jp, eff)]
     pre_filtered, cheap_dropped = _cheap_pre_filter(hard_filtered, eff, histories, focus)
     heuristic_dropped = screened - len(pre_filtered)
     print(f"  [discover] cheap pre-filter (location+relevance): kept {len(pre_filtered)}/"
@@ -762,6 +800,7 @@ def discover(cfg: Config, week_end: date | None = None, data_root=None,
                 entry["resume"] = verdict["resume"]
         jp.best_resume = entry.get("resume", "")
     kept.sort(key=lambda jp: explained[jp.dedup_key]["score"], reverse=True)
+    kept = _drop_dead_links(cfg, kept)
 
     if write_cache:
         cache = paths.postings_cache_path(cfg.user, we, data_root)
