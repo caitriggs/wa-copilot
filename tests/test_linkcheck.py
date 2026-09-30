@@ -50,3 +50,10 @@ def test_drop_dead_links_can_be_disabled(monkeypatch):
     monkeypatch.setattr(linkcheck, "check_url", lambda url, timeout=15.0: "dead")
     ranked = [_jp("A", "https://x/a")]
     assert discover._drop_dead_links(cfg, ranked) == ranked
+
+
+def test_is_fresh_strict_mode_drops_undated():
+    today = date(2026, 9, 30)
+    assert not linkcheck.is_fresh("", 10, today, drop_undated=True)
+    assert not linkcheck.is_fresh("2026-09-19", 10, today, drop_undated=True)   # 11 days old
+    assert linkcheck.is_fresh("2026-09-20", 10, today, drop_undated=True)       # exactly 10

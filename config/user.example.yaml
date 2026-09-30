@@ -154,6 +154,11 @@ discover:
   # rate limit. Raise it if you have generous rate limits and want faster runs; lower it (or set
   # to 1) if you're hitting 429s.
   # qualification_concurrency: 8
+  # Freshness + dead links (linkcheck.py): aggregators (Jooble) keep returning closed jobs.
+  # max_age_days: 21      # drop postings older than this many days
+  # drop_undated: false   # true = also drop postings with no posted date (strict cutoff)
+  # verify_links: true    # link-check the top picks; drop ones whose page says the job is gone
+  # verify_top: 60
 
 # Ranking weights (transparent; tune to taste). Higher = more influence.
 ranking:

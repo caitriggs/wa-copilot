@@ -9,7 +9,8 @@ clicks through to a dead page has wasted their time, so discover() screens for t
 picks go out:
 
   1. `is_fresh()` — drop postings whose posted/updated date is older than
-     `discover.max_age_days` (default 21). Unknown/unparseable dates are kept (neutral).
+     `discover.max_age_days` (default 21). Unknown/unparseable dates are kept (neutral) unless
+     `discover.drop_undated: true`.
   2. `check_url()` — for the top of the ranked list only (bounded; see discover.py), fetch each
      posting's link and classify it "dead" (HTTP 404/410, or the landing page says the job is
      expired / no longer available), "alive", or "unknown" (network error, bot-block 403/429,
@@ -60,10 +61,16 @@ def parse_posted(value: str) -> date | None:
         return None
 
 
-def is_fresh(posted_date: str, max_age_days: int, today: date | None = None) -> bool:
-    d = parse_posted(posted_date)
-    if d is None or not max_age_days or max_age_days <= 0:
+def is_fresh(posted_date: str, max_age_days: int, today: date | None = None,
+             drop_undated: bool = False) -> bool:
+    """True if posted within `max_age_days` (0/None disables the cutoff). A missing/unparseable
+    date is kept unless `drop_undated` (config `discover.drop_undated`) — the strict mode for
+    "must be posted in the last N days", where an undated listing can't prove it."""
+    if not max_age_days or max_age_days <= 0:
         return True
+    d = parse_posted(posted_date)
+    if d is None:
+        return not drop_undated
     return d >= (today or date.today()) - timedelta(days=int(max_age_days))
 
 

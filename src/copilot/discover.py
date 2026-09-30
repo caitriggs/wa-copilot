@@ -763,10 +763,12 @@ def discover(cfg: Config, week_end: date | None = None, data_root=None,
     # Stale listings (aggregators keep returning closed jobs) never reach the LLM stages.
     from . import linkcheck
     max_age = _int_setting(cfg, "discover.max_age_days", linkcheck.DEFAULT_MAX_AGE_DAYS)
-    fresh = [jp for jp in collected.values() if linkcheck.is_fresh(jp.posted_date, max_age)]
+    drop_undated = bool(cfg.get("discover.drop_undated", False))
+    fresh = [jp for jp in collected.values()
+             if linkcheck.is_fresh(jp.posted_date, max_age, drop_undated=drop_undated)]
     if len(fresh) != len(collected):
         print(f"  [discover] freshness: dropped {len(collected) - len(fresh)} posting(s) older "
-              f"than {max_age} days.")
+              f"than {max_age} days" + (" or undated." if drop_undated else "."))
     hard_filtered = [jp for jp in fresh if passes_hard_filters(jp, eff)]
     pre_filtered, cheap_dropped = _cheap_pre_filter(hard_filtered, eff, histories, focus)
     heuristic_dropped = screened - len(pre_filtered)
